@@ -5,7 +5,7 @@ from datetime import datetime
 from io import BytesIO
 
 import pandas as pd
-import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 
@@ -171,13 +171,13 @@ st.markdown(
             margin-top: 2px;
         }
 
-        .sidebar-nav-card {
+        .sidebar-nav-title-card {
             background: linear-gradient(180deg, #EAF6FC 0%, #D7EEF9 100%);
             border: 1px solid #B9D9EF;
-            border-radius: 26px;
-            padding: 20px 18px 14px 18px;
-            margin-bottom: 20px;
-            box-shadow: 0 14px 32px rgba(0, 120, 184, 0.13);
+            border-radius: 22px;
+            padding: 16px 16px;
+            margin-bottom: 14px;
+            box-shadow: 0 12px 26px rgba(0, 120, 184, 0.12);
         }
 
         .sidebar-title {
@@ -185,7 +185,6 @@ st.markdown(
             font-size: 12px;
             font-weight: 800;
             letter-spacing: 0.8px;
-            margin-bottom: 12px;
             text-transform: uppercase;
         }
 
@@ -223,6 +222,7 @@ st.markdown(
                 radial-gradient(circle at top left, rgba(255,255,255,0.32), rgba(255,255,255,0.06) 35%, transparent 52%),
                 linear-gradient(135deg, #0089CE, #005B9E 68%, #003B70);
             box-shadow: 0 18px 40px rgba(0, 64, 116, 0.30);
+            margin-top: 20px;
         }
 
         .sidebar-info-title {
@@ -449,6 +449,31 @@ st.markdown(
             padding: 18px;
         }
 
+        .chart-dark-title {
+            background: linear-gradient(135deg, #0B2742, #123A5A);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 24px;
+            padding: 18px 22px;
+            color: #FFFFFF;
+            margin-bottom: 14px;
+            box-shadow: 0 16px 34px rgba(0, 45, 80, 0.20);
+        }
+
+        .chart-dark-title h3 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 900;
+            color: #FFF45A;
+            letter-spacing: 0.3px;
+            text-shadow: 0 0 12px rgba(255,244,90,0.35);
+        }
+
+        .chart-dark-title p {
+            margin: 5px 0 0 0;
+            font-size: 13px;
+            color: rgba(255,255,255,0.82);
+        }
+
         .info-box {
             background: linear-gradient(135deg, #EAF6FC, #FFFFFF);
             border: 1px solid #CFE8F7;
@@ -480,6 +505,18 @@ st.markdown(
             border-radius: 17px;
             padding: 16px 18px;
             color: #704D00;
+            font-size: 14px;
+            margin-bottom: 18px;
+            line-height: 1.6;
+        }
+
+        .danger-box {
+            background: linear-gradient(135deg, #FFF0F0, #FFFFFF);
+            border: 1px solid #FFD0D0;
+            border-left: 5px solid #D93025;
+            border-radius: 17px;
+            padding: 16px 18px;
+            color: #7A1515;
             font-size: 14px;
             margin-bottom: 18px;
             line-height: 1.6;
@@ -568,7 +605,7 @@ st.markdown(
 
 
 # ==============================
-# FUNGSI LOGO
+# FUNGSI UMUM
 # ==============================
 
 def image_to_base64(path):
@@ -581,12 +618,73 @@ def image_to_base64(path):
     return encoded
 
 
+def get_month_label(month_key):
+    bulan = {
+        "01": "Januari",
+        "02": "Februari",
+        "03": "Maret",
+        "04": "April",
+        "05": "Mei",
+        "06": "Juni",
+        "07": "Juli",
+        "08": "Agustus",
+        "09": "September",
+        "10": "Oktober",
+        "11": "November",
+        "12": "Desember",
+    }
+
+    try:
+        tahun, bulan_angka = month_key.split("-")
+        return f"{bulan.get(bulan_angka, bulan_angka)} {tahun}"
+    except Exception:
+        return str(month_key)
+
+
+def get_month_key_from_date(date_value):
+    return date_value.strftime("%Y-%m")
+
+
 # ==============================
 # DATABASE
 # ==============================
 
 def get_connection():
     return sqlite3.connect(DB_PATH, check_same_thread=False)
+
+
+def table_exists(conn, table_name):
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        (table_name,)
+    )
+    return cursor.fetchone() is not None
+
+
+def get_table_columns(conn, table_name):
+    if not table_exists(conn, table_name):
+        return []
+
+    cursor = conn.cursor()
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    rows = cursor.fetchall()
+    return [row[1] for row in rows]
+
+
+def ensure_columns(conn, table_name, df):
+    if not table_exists(conn, table_name):
+        return
+
+    existing_columns = get_table_columns(conn, table_name)
+    cursor = conn.cursor()
+
+    for col in df.columns:
+        if col not in existing_columns:
+            safe_col = col.replace('"', '""')
+            cursor.execute(f'ALTER TABLE {table_name} ADD COLUMN "{safe_col}" TEXT')
+
+    conn.commit()
 
 
 def init_database():
@@ -600,30 +698,42 @@ def init_database():
             file_name TEXT,
             upload_date TEXT,
             total_rows INTEGER,
-            status TEXT
+            status TEXT,
+            periode_data TEXT,
+            periode_label TEXT
         )
         """
     )
+
+    upload_columns = get_table_columns(conn, UPLOAD_TABLE)
+
+    if "periode_data" not in upload_columns:
+        cursor.execute(f"ALTER TABLE {UPLOAD_TABLE} ADD COLUMN periode_data TEXT")
+
+    if "periode_label" not in upload_columns:
+        cursor.execute(f"ALTER TABLE {UPLOAD_TABLE} ADD COLUMN periode_label TEXT")
 
     conn.commit()
     conn.close()
 
 
-def save_upload_history(file_name, total_rows, status="Berhasil diproses"):
+def save_upload_history(file_name, total_rows, periode_data, periode_label, status="Berhasil diproses"):
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute(
         f"""
         INSERT INTO {UPLOAD_TABLE}
-        (file_name, upload_date, total_rows, status)
-        VALUES (?, ?, ?, ?)
+        (file_name, upload_date, total_rows, status, periode_data, periode_label)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
         (
             file_name,
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             int(total_rows),
             status,
+            periode_data,
+            periode_label,
         ),
     )
 
@@ -631,8 +741,11 @@ def save_upload_history(file_name, total_rows, status="Berhasil diproses"):
     conn.close()
 
 
-def save_dataframe_to_db(df_raw, df_processed, mode="replace"):
+def save_dataframe_to_db(df_raw, df_processed, mode="append"):
     conn = get_connection()
+
+    ensure_columns(conn, RAW_TABLE, df_raw)
+    ensure_columns(conn, PROCESSED_TABLE, df_processed)
 
     df_raw.to_sql(RAW_TABLE, conn, if_exists=mode, index=False)
     df_processed.to_sql(PROCESSED_TABLE, conn, if_exists=mode, index=False)
@@ -649,6 +762,75 @@ def read_table(table_name):
         df = pd.DataFrame()
 
     conn.close()
+    return df
+
+
+def get_available_months():
+    df = read_table(PROCESSED_TABLE)
+
+    if df.empty or "Periode Data" not in df.columns:
+        return []
+
+    months = (
+        df["Periode Data"]
+        .dropna()
+        .astype(str)
+        .replace("", pd.NA)
+        .dropna()
+        .unique()
+        .tolist()
+    )
+
+    months = sorted(months, reverse=True)
+    return months
+
+
+def delete_data_by_month(month_key):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    for table_name in [RAW_TABLE, PROCESSED_TABLE]:
+        if table_exists(conn, table_name):
+            columns = get_table_columns(conn, table_name)
+
+            if "Periode Data" in columns:
+                cursor.execute(
+                    f'DELETE FROM {table_name} WHERE "Periode Data" = ?',
+                    (month_key,)
+                )
+
+    if table_exists(conn, UPLOAD_TABLE):
+        upload_columns = get_table_columns(conn, UPLOAD_TABLE)
+
+        if "periode_data" in upload_columns:
+            cursor.execute(
+                f"DELETE FROM {UPLOAD_TABLE} WHERE periode_data = ?",
+                (month_key,)
+            )
+
+    conn.commit()
+    conn.close()
+
+
+def filter_df_by_month(df, month_key):
+    if df.empty:
+        return df
+
+    if month_key == "ALL":
+        return df
+
+    if "Periode Data" not in df.columns:
+        return df.iloc[0:0]
+
+    return df[df["Periode Data"].astype(str) == str(month_key)].copy()
+
+
+def prepare_month_metadata(df, month_key, month_label, uploaded_file_name):
+    df = df.copy()
+    df["Periode Data"] = month_key
+    df["Periode Label"] = month_label
+    df["Nama File Upload"] = uploaded_file_name
+    df["Tanggal Upload"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     return df
 
 
@@ -919,6 +1101,15 @@ def clean_dashboard_numeric(df):
     return df
 
 
+def format_chart_number(value):
+    try:
+        if abs(float(value)) >= 1_000_000:
+            return format_rupiah_ringkas(value).replace("Rp ", "")
+        return format_number(value)
+    except Exception:
+        return str(value)
+
+
 # ==============================
 # KOMPONEN UI
 # ==============================
@@ -951,8 +1142,9 @@ def render_custom_sidebar():
 
     st.markdown(
         """
-        <div class="sidebar-nav-card">
+        <div class="sidebar-nav-title-card">
             <div class="sidebar-title">Navigasi Sistem</div>
+        </div>
         """,
         unsafe_allow_html=True,
     )
@@ -967,8 +1159,6 @@ def render_custom_sidebar():
         ],
         label_visibility="collapsed",
     )
-
-    st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown(
         """
@@ -1054,6 +1244,18 @@ def render_section_title(title, subtitle):
     )
 
 
+def render_dark_chart_title(title, subtitle):
+    st.markdown(
+        f"""
+        <div class="chart-dark-title">
+            <h3>{title}</h3>
+            <p>{subtitle}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_info(text):
     st.markdown(
         f"""
@@ -1081,6 +1283,15 @@ def render_warning(text):
     )
 
 
+def render_danger(text):
+    st.markdown(
+        f"""
+        <div class="danger-box">{text}</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_footer():
     st.markdown(
         """
@@ -1093,49 +1304,229 @@ def render_footer():
     )
 
 
-def make_horizontal_bar(df, x_col, y_col, title, color):
-    fig = px.bar(
-        df,
-        x=x_col,
-        y=y_col,
-        orientation="h",
-        text=x_col,
-        title=title,
-    )
+# ==============================
+# CHART BAR MEMANJANG
+# ==============================
 
-    fig.update_traces(
-        marker_color=color,
-        textposition="outside",
-        cliponaxis=False,
+def make_long_horizontal_bar(
+    df,
+    x_col,
+    y_col,
+    title,
+    x_title,
+    bar_color="#FFF45A",
+    value_mode="number",
+):
+    if df.empty:
+        fig = go.Figure()
+        fig.update_layout(
+            title="Tidak ada data",
+            height=360,
+            paper_bgcolor="rgba(9, 35, 58, 0.98)",
+            plot_bgcolor="rgba(9, 35, 58, 0.98)",
+            font=dict(color="#FFFFFF", family="Inter"),
+        )
+        return fig
+
+    data = df.copy()
+    data[x_col] = pd.to_numeric(data[x_col], errors="coerce").fillna(0)
+    data[y_col] = data[y_col].astype(str)
+    data = data.sort_values(x_col, ascending=True)
+
+    if value_mode == "currency":
+        text_values = [format_rupiah_ringkas(v).replace("Rp ", "") for v in data[x_col]]
+    elif value_mode == "day":
+        text_values = [f"{float(v):.1f} hari" for v in data[x_col]]
+    else:
+        text_values = [format_number(v) for v in data[x_col]]
+
+    height = max(420, 78 * len(data) + 140)
+
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Bar(
+            x=data[x_col],
+            y=data[y_col],
+            orientation="h",
+            text=text_values,
+            textposition="outside",
+            marker=dict(
+                color=bar_color,
+                line=dict(color="#FFF9A8", width=1),
+            ),
+            hovertemplate="<b>%{y}</b><br>Nilai: %{text}<extra></extra>",
+        )
     )
 
     fig.update_layout(
-        height=360,
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
+        title=dict(
+            text=title,
+            x=0.5,
+            xanchor="center",
+            font=dict(
+                size=24,
+                color="#FFF45A",
+                family="Inter",
+            ),
+        ),
+        height=height,
+        margin=dict(l=230, r=110, t=80, b=65),
+        paper_bgcolor="rgba(9, 35, 58, 0.98)",
+        plot_bgcolor="rgba(9, 35, 58, 0.98)",
         font=dict(
             family="Inter",
-            size=11,
-            color="#092D55",
+            color="#FFFFFF",
+            size=12,
         ),
-        title=dict(
-            font=dict(
-                size=14,
-                color="#092D55",
-            ),
-            x=0.02,
-        ),
-        margin=dict(l=10, r=25, t=45, b=25),
         xaxis=dict(
-            showgrid=True,
-            gridcolor="#E9F1F8",
+            title=dict(
+                text=x_title,
+                font=dict(color="#FFF45A", size=12),
+            ),
+            gridcolor="rgba(255,255,255,0.12)",
             zeroline=False,
+            tickfont=dict(color="#FFFFFF"),
         ),
         yaxis=dict(
-            showgrid=False,
-            zeroline=False,
-            autorange="reversed",
+            title="",
+            gridcolor="rgba(255,255,255,0.06)",
+            tickfont=dict(color="#FFFFFF", size=12),
         ),
+        bargap=0.34,
+    )
+
+    fig.update_traces(
+        textfont=dict(
+            color="#FFFFFF",
+            size=12,
+            family="Inter",
+        ),
+        cliponaxis=False,
+    )
+
+    return fig
+
+
+def make_efficiency_comparison_bar(df):
+    if df.empty:
+        fig = go.Figure()
+        fig.update_layout(
+            title="Tidak ada data",
+            height=420,
+            paper_bgcolor="rgba(9, 35, 58, 0.98)",
+            plot_bgcolor="rgba(9, 35, 58, 0.98)",
+            font=dict(color="#FFFFFF", family="Inter"),
+        )
+        return fig
+
+    data = df.copy()
+
+    for col in ["Total_Valuation_Price", "Total_Net_Order_Value", "Total_Efisiensi"]:
+        data[col] = pd.to_numeric(data[col], errors="coerce").fillna(0)
+
+    data["Status Final"] = data["Status Final"].astype(str)
+    data = data.sort_values("Total_Net_Order_Value", ascending=True)
+
+    height = max(480, 95 * len(data) + 150)
+
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Bar(
+            y=data["Status Final"],
+            x=data["Total_Valuation_Price"],
+            name="HPS/OE",
+            orientation="h",
+            marker=dict(color="#FFF4DB"),
+            text=[format_rupiah_ringkas(v).replace("Rp ", "") for v in data["Total_Valuation_Price"]],
+            textposition="outside",
+            hovertemplate="<b>%{y}</b><br>HPS/OE: %{text}<extra></extra>",
+        )
+    )
+
+    fig.add_trace(
+        go.Bar(
+            y=data["Status Final"],
+            x=data["Total_Net_Order_Value"],
+            name="PO",
+            orientation="h",
+            marker=dict(color="#B8D8FF"),
+            text=[format_rupiah_ringkas(v).replace("Rp ", "") for v in data["Total_Net_Order_Value"]],
+            textposition="outside",
+            hovertemplate="<b>%{y}</b><br>PO: %{text}<extra></extra>",
+        )
+    )
+
+    fig.add_trace(
+        go.Bar(
+            y=data["Status Final"],
+            x=data["Total_Efisiensi"],
+            name="Efisiensi",
+            orientation="h",
+            marker=dict(color="#FFF45A"),
+            text=[format_rupiah_ringkas(v).replace("Rp ", "") for v in data["Total_Efisiensi"]],
+            textposition="outside",
+            hovertemplate="<b>%{y}</b><br>Efisiensi: %{text}<extra></extra>",
+        )
+    )
+
+    fig.update_layout(
+        title=dict(
+            text="EFISIENSI",
+            x=0.5,
+            xanchor="center",
+            font=dict(
+                size=26,
+                color="#FFF45A",
+                family="Inter",
+            ),
+        ),
+        barmode="group",
+        height=height,
+        margin=dict(l=240, r=125, t=85, b=70),
+        paper_bgcolor="rgba(9, 35, 58, 0.98)",
+        plot_bgcolor="rgba(9, 35, 58, 0.98)",
+        font=dict(
+            family="Inter",
+            color="#FFFFFF",
+            size=12,
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+            font=dict(color="#FFFFFF"),
+            bgcolor="rgba(0,0,0,0)",
+        ),
+        xaxis=dict(
+            title=dict(
+                text="Nilai Rupiah",
+                font=dict(color="#FFF45A", size=12),
+            ),
+            gridcolor="rgba(255,255,255,0.12)",
+            zeroline=True,
+            zerolinecolor="rgba(255,255,255,0.35)",
+            tickfont=dict(color="#FFFFFF"),
+        ),
+        yaxis=dict(
+            title="",
+            gridcolor="rgba(255,255,255,0.06)",
+            tickfont=dict(color="#FFFFFF", size=12),
+        ),
+        bargap=0.22,
+        bargroupgap=0.08,
+    )
+
+    fig.update_traces(
+        textfont=dict(
+            color="#FFFFFF",
+            size=11,
+            family="Inter",
+        ),
+        cliponaxis=False,
     )
 
     return fig
@@ -1195,21 +1586,37 @@ with main_col:
                 st.markdown(
                     """
                     1. Buka menu **Entry Data Excel**.  
-                    2. Upload file Excel PO.  
-                    3. Klik tombol **Proses dan Simpan ke Database**.  
-                    4. Buka kembali menu **Dashboard** untuk melihat grafik dan rekap data.  
-                    5. Gunakan menu **Database & Download** untuk mengunduh hasil pengolahan.
+                    2. Pilih bulan data yang sesuai.  
+                    3. Upload file Excel PO.  
+                    4. Klik tombol **Proses dan Simpan ke Database**.  
+                    5. Buka kembali menu **Dashboard** untuk melihat grafik dan rekap data.  
+                    6. Gunakan menu **Database & Download** untuk mengunduh atau menghapus data berdasarkan bulan.
                     """
                 )
 
         else:
             df = clean_dashboard_numeric(df)
 
-            total_po = df["Purchasing Document"].nunique()
+            available_months = get_available_months()
+
+            if available_months:
+                month_options = ["ALL"] + available_months
+                month_labels = ["Semua Data"] + [get_month_label(m) for m in available_months]
+
+                selected_month_label = st.selectbox(
+                    "Filter Bulan Data",
+                    month_labels,
+                    index=0
+                )
+
+                selected_month = month_options[month_labels.index(selected_month_label)]
+                df = filter_df_by_month(df, selected_month)
+
+            total_po = df["Purchasing Document"].nunique() if not df.empty else 0
             total_rows = len(df)
-            total_order = df["Net Order Value"].sum()
-            total_efisiensi = df["Efisiensi"].sum()
-            avg_lama_proses = df["Lama Proses PO"].mean()
+            total_order = df["Net Order Value"].sum() if not df.empty else 0
+            total_efisiensi = df["Efisiensi"].sum() if not df.empty else 0
+            avg_lama_proses = df["Lama Proses PO"].mean() if not df.empty else 0
 
             col1, col2, col3, col4, col5 = st.columns(5)
 
@@ -1230,46 +1637,75 @@ with main_col:
 
             st.write("")
 
-            paket_po, efisiensi, lama_proses = make_rekap(df)
+            if df.empty:
+                render_warning("Tidak ada data pada bulan yang dipilih.")
+            else:
+                paket_po, efisiensi, lama_proses = make_rekap(df)
 
-            chart1, chart2, chart3 = st.columns(3)
+                st.write("")
 
-            with chart1:
-                with st.container(border=True):
-                    render_section_title("1. Paket PO", "Jumlah paket PO berdasarkan Status Final.")
-                    fig = make_horizontal_bar(paket_po, "Jumlah Paket PO", "Status Final", "Jumlah Paket PO", "#0078B8")
-                    st.plotly_chart(fig, use_container_width=True)
+                render_dark_chart_title(
+                    "PAKET PURCHASE ORDER (PO)",
+                    "Visualisasi jumlah dokumen paket PO berdasarkan status final pengadaan."
+                )
 
-            with chart2:
-                with st.container(border=True):
-                    render_section_title("2. Efisiensi", "Total efisiensi berdasarkan Status Final.")
-                    fig = make_horizontal_bar(efisiensi, "Total_Efisiensi", "Status Final", "Total Efisiensi", "#16A7A0")
-                    st.plotly_chart(fig, use_container_width=True)
+                fig_paket = make_long_horizontal_bar(
+                    paket_po,
+                    x_col="Jumlah Paket PO",
+                    y_col="Status Final",
+                    title="PAKET PURCHASE ORDER (PO)",
+                    x_title="Jumlah Dokumen Paket PO",
+                    bar_color="#FFF45A",
+                    value_mode="number"
+                )
+                st.plotly_chart(fig_paket, use_container_width=True)
 
-            with chart3:
-                with st.container(border=True):
-                    render_section_title("3. Lama Proses PO", "Rata-rata lama proses PO berdasarkan Status Final.")
-                    fig = make_horizontal_bar(lama_proses, "Rata_Rata_Lama_Proses_PO", "Status Final", "Rata-rata Lama Proses PO", "#2B70D6")
-                    st.plotly_chart(fig, use_container_width=True)
+                st.write("")
 
-            st.write("")
+                render_dark_chart_title(
+                    "EFISIENSI",
+                    "Perbandingan nilai HPS/OE, nilai PO, dan total efisiensi berdasarkan status final."
+                )
 
-            table1, table2, table3 = st.columns(3)
+                fig_efisiensi = make_efficiency_comparison_bar(efisiensi)
+                st.plotly_chart(fig_efisiensi, use_container_width=True)
 
-            with table1:
-                with st.container(border=True):
-                    render_section_title("Ringkasan Paket PO", "Tabel jumlah paket PO.")
-                    st.dataframe(paket_po, use_container_width=True, hide_index=True)
+                st.write("")
 
-            with table2:
-                with st.container(border=True):
-                    render_section_title("Ringkasan Efisiensi", "Tabel efisiensi pengadaan.")
-                    st.dataframe(efisiensi, use_container_width=True, hide_index=True)
+                render_dark_chart_title(
+                    "LAMA PROSES PURCHASE ORDER (PO)",
+                    "Visualisasi rata-rata lama proses PO per hari berdasarkan status final pengadaan."
+                )
 
-            with table3:
-                with st.container(border=True):
-                    render_section_title("Ringkasan Lama Proses PO", "Tabel rata-rata proses PO.")
-                    st.dataframe(lama_proses, use_container_width=True, hide_index=True)
+                fig_lama = make_long_horizontal_bar(
+                    lama_proses,
+                    x_col="Rata_Rata_Lama_Proses_PO",
+                    y_col="Status Final",
+                    title="LAMA PROSES PURCHASE ORDER (PO)",
+                    x_title="Rata-Rata Lama Proses PO Per Hari",
+                    bar_color="#FFF45A",
+                    value_mode="day"
+                )
+                st.plotly_chart(fig_lama, use_container_width=True)
+
+                st.write("")
+
+                table1, table2, table3 = st.columns(3)
+
+                with table1:
+                    with st.container(border=True):
+                        render_section_title("Ringkasan Paket PO", "Tabel jumlah paket PO.")
+                        st.dataframe(paket_po, use_container_width=True, hide_index=True)
+
+                with table2:
+                    with st.container(border=True):
+                        render_section_title("Ringkasan Efisiensi", "Tabel efisiensi pengadaan.")
+                        st.dataframe(efisiensi, use_container_width=True, hide_index=True)
+
+                with table3:
+                    with st.container(border=True):
+                        render_section_title("Ringkasan Lama Proses PO", "Tabel rata-rata proses PO.")
+                        st.dataframe(lama_proses, use_container_width=True, hide_index=True)
 
         render_footer()
 
@@ -1281,18 +1717,30 @@ with main_col:
 
         render_info(
             """
-            Upload file Excel dengan format kolom sesuai data PO.
-            Sistem akan membaca sheet <b>PO April 2026</b> sebagai data utama dan sheet
-            <b>KK Pemaketan</b> untuk mengambil informasi <b>Lama Proses PO</b>.
+            Pilih bulan data terlebih dahulu sebelum upload. Data akan disimpan berdasarkan periode bulan tersebut,
+            sehingga nanti bisa diunduh atau dihapus per bulan.
             """
         )
 
         with st.container(border=True):
-            render_section_title("Upload File Excel", "Gunakan file Excel dengan format .xlsx, .xlsm, atau .xls.")
+            render_section_title("Periode Data", "Pilih bulan data yang sesuai dengan file Excel yang akan diunggah.")
+
+            periode_tanggal = st.date_input(
+                "Pilih Bulan Data",
+                value=datetime.now().date()
+            )
+
+            periode_data = get_month_key_from_date(periode_tanggal)
+            periode_label = get_month_label(periode_data)
+
+            st.info(f"Periode data yang dipilih: {periode_label}")
+
+        with st.container(border=True):
+            render_section_title("Upload File Excel", "Gunakan file Excel dengan format .xlsx atau .xlsm.")
 
             uploaded_file = st.file_uploader(
                 "Upload file Excel",
-                type=["xlsx", "xlsm", "xls"]
+                type=["xlsx", "xlsm"]
             )
 
         if uploaded_file is not None:
@@ -1317,29 +1765,58 @@ with main_col:
                         render_section_title("Preview Data Input", "Berikut 20 baris awal dari sheet PO yang akan diproses.")
                         st.dataframe(df_po.head(20), use_container_width=True)
 
+                    replace_month_data = st.checkbox(
+                        f"Hapus data lama untuk periode {periode_label} sebelum menyimpan data baru"
+                    )
+
                     if st.button("Proses dan Simpan ke Database"):
+                        if replace_month_data:
+                            delete_data_by_month(periode_data)
+
                         df_processed = process_po_data(df_po, df_kk)
 
-                        save_dataframe_to_db(df_po, df_processed, mode="replace")
-                        save_upload_history(uploaded_file.name, len(df_processed))
+                        df_po_save = prepare_month_metadata(
+                            df_po,
+                            periode_data,
+                            periode_label,
+                            uploaded_file.name
+                        )
 
-                        render_success("Data berhasil diproses dan disimpan ke database. Dashboard sudah dapat digunakan.")
+                        df_processed_save = prepare_month_metadata(
+                            df_processed,
+                            periode_data,
+                            periode_label,
+                            uploaded_file.name
+                        )
+
+                        save_dataframe_to_db(df_po_save, df_processed_save, mode="append")
+
+                        save_upload_history(
+                            uploaded_file.name,
+                            len(df_processed_save),
+                            periode_data,
+                            periode_label
+                        )
+
+                        render_success(
+                            f"Data berhasil diproses dan disimpan ke database untuk periode <b>{periode_label}</b>."
+                        )
 
                         with st.container(border=True):
                             render_section_title("Preview Hasil Pengolahan", "Kolom hasil olahan sudah ditambahkan ke data PO.")
-                            st.dataframe(df_processed.head(20), use_container_width=True)
+                            st.dataframe(df_processed_save.head(20), use_container_width=True)
 
                         excel_bytes = dataframe_to_excel_bytes(
                             {
-                                "Data Mentah": df_po,
-                                "Hasil Pengolahan": df_processed,
+                                "Data Mentah": df_po_save,
+                                "Hasil Pengolahan": df_processed_save,
                             }
                         )
 
                         st.download_button(
-                            label="Download Hasil Pengolahan Excel",
+                            label=f"Download Hasil Pengolahan {periode_label}",
                             data=excel_bytes,
-                            file_name="hasil_pengolahan_po.xlsx",
+                            file_name=f"hasil_pengolahan_po_{periode_data}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         )
 
@@ -1361,11 +1838,26 @@ with main_col:
             render_warning("Belum ada data hasil pengolahan.")
 
         else:
+            available_months = get_available_months()
+
+            if available_months:
+                month_options = ["ALL"] + available_months
+                month_labels = ["Semua Data"] + [get_month_label(m) for m in available_months]
+
+                selected_month_label = st.selectbox(
+                    "Filter Bulan Data",
+                    month_labels,
+                    index=0
+                )
+
+                selected_month = month_options[month_labels.index(selected_month_label)]
+                df = filter_df_by_month(df, selected_month)
+
             render_info(
                 """
                 Data berikut merupakan hasil pengolahan dari file Excel yang sudah di-upload.
                 Kolom tambahan mencakup Total Valuation Price, PIR, Status Final, PRJ,
-                Efisiensi, Prosentase, dan Lama Proses PO.
+                Efisiensi, Prosentase, Lama Proses PO, dan Periode Data.
                 """
             )
 
@@ -1391,8 +1883,98 @@ with main_col:
     elif menu == "Database & Download":
         render_header(
             "Database & Download",
-            "Menampilkan database tersimpan dan menyediakan fitur export data."
+            "Menampilkan database tersimpan, download data bulanan, dan hapus data berdasarkan bulan."
         )
+
+        available_months = get_available_months()
+
+        with st.container(border=True):
+            render_section_title("Download & Hapus Data Bulanan", "Pilih bulan data untuk mengunduh atau menghapus data yang tersimpan.")
+
+            if not available_months:
+                render_warning("Belum ada data bulanan yang tersimpan.")
+            else:
+                month_labels = [get_month_label(m) for m in available_months]
+
+                selected_month_label = st.selectbox(
+                    "Pilih Bulan Data",
+                    month_labels
+                )
+
+                selected_month = available_months[month_labels.index(selected_month_label)]
+
+                df_raw_all = read_table(RAW_TABLE)
+                df_processed_all = read_table(PROCESSED_TABLE)
+
+                df_raw_month = filter_df_by_month(df_raw_all, selected_month)
+                df_processed_month = filter_df_by_month(df_processed_all, selected_month)
+
+                paket_po, efisiensi, lama_proses = make_rekap(df_processed_month)
+
+                col_a, col_b, col_c = st.columns(3)
+
+                with col_a:
+                    render_metric_card(
+                        "Periode Data",
+                        selected_month_label,
+                        "Bulan data yang dipilih",
+                        "📅"
+                    )
+
+                with col_b:
+                    render_metric_card(
+                        "Jumlah Data",
+                        format_number(len(df_processed_month)),
+                        "Total data pada bulan ini",
+                        "🗄️"
+                    )
+
+                with col_c:
+                    render_metric_card(
+                        "Total Paket PO",
+                        format_number(df_processed_month["Purchasing Document"].nunique() if not df_processed_month.empty else 0),
+                        "Paket PO unik pada bulan ini",
+                        "📦"
+                    )
+
+                monthly_excel = dataframe_to_excel_bytes(
+                    {
+                        "Data Mentah": df_raw_month,
+                        "Hasil Pengolahan": df_processed_month,
+                        "Rekap Paket PO": paket_po,
+                        "Rekap Efisiensi": efisiensi,
+                        "Rekap Lama Proses PO": lama_proses,
+                    }
+                )
+
+                st.download_button(
+                    label=f"Download Data Bulan {selected_month_label}",
+                    data=monthly_excel,
+                    file_name=f"database_po_{selected_month}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+
+                st.write("")
+
+                render_danger(
+                    f"""
+                    <b>Hapus Data Bulanan</b><br>
+                    Fitur ini akan menghapus data mentah, hasil pengolahan, dan riwayat upload untuk periode
+                    <b>{selected_month_label}</b>. Data yang sudah dihapus tidak bisa dikembalikan dari aplikasi.
+                    """
+                )
+
+                confirm_delete = st.checkbox(
+                    f"Saya yakin ingin menghapus data periode {selected_month_label}"
+                )
+
+                if confirm_delete:
+                    if st.button(f"Hapus Data {selected_month_label}"):
+                        delete_data_by_month(selected_month)
+                        st.success(f"Data periode {selected_month_label} berhasil dihapus.")
+                        st.rerun()
+
+        st.write("")
 
         with st.container(border=True):
             render_section_title("Riwayat Upload", "Daftar file Excel yang pernah diproses oleh sistem.")
@@ -1410,7 +1992,7 @@ with main_col:
             [
                 "Data Mentah",
                 "Data Hasil Pengolahan",
-                "Download Database",
+                "Download Semua Database",
             ]
         )
 
@@ -1432,9 +2014,9 @@ with main_col:
                     )
 
                     st.download_button(
-                        label="Download Data Mentah Excel",
+                        label="Download Semua Data Mentah Excel",
                         data=raw_excel,
-                        file_name="data_mentah_po.xlsx",
+                        file_name="data_mentah_po_semua.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     )
 
@@ -1462,9 +2044,9 @@ with main_col:
                     )
 
                     st.download_button(
-                        label="Download Hasil Pengolahan & Rekap",
+                        label="Download Semua Hasil Pengolahan & Rekap",
                         data=processed_excel,
-                        file_name="hasil_pengolahan_dan_rekap_po.xlsx",
+                        file_name="hasil_pengolahan_dan_rekap_po_semua.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     )
 
@@ -1494,7 +2076,7 @@ with main_col:
                     st.download_button(
                         label="Download Semua Data dalam Excel",
                         data=excel_bytes,
-                        file_name="database_po_export.xlsx",
+                        file_name="database_po_export_semua.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     )
 

@@ -129,11 +129,11 @@ st.markdown(
         }
 
         .sidebar-logo-card {
-            background: #FFFFFF;
+            background: linear-gradient(180deg, #FFFFFF 0%, #F7FBFE 100%);
             border: 1px solid #DDEAF4;
             border-radius: 28px;
             padding: 26px 24px;
-            margin-bottom: 24px;
+            margin-bottom: 18px;
             box-shadow: 0 18px 40px rgba(0, 72, 135, 0.12);
             text-align: center;
         }
@@ -171,18 +171,27 @@ st.markdown(
             margin-top: 2px;
         }
 
+        .sidebar-nav-card {
+            background: linear-gradient(180deg, #EAF6FC 0%, #D7EEF9 100%);
+            border: 1px solid #B9D9EF;
+            border-radius: 26px;
+            padding: 20px 18px 14px 18px;
+            margin-bottom: 20px;
+            box-shadow: 0 14px 32px rgba(0, 120, 184, 0.13);
+        }
+
         .sidebar-title {
             color: #092D55;
             font-size: 12px;
             font-weight: 800;
             letter-spacing: 0.8px;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
             text-transform: uppercase;
         }
 
         div[role="radiogroup"] label {
-            background: rgba(255, 255, 255, 0.95);
-            border: 1px solid rgba(0, 120, 184, 0.15);
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid rgba(0, 120, 184, 0.18);
             padding: 14px 15px;
             border-radius: 18px;
             margin-bottom: 12px;
@@ -190,11 +199,11 @@ st.markdown(
             font-weight: 700;
             font-size: 14px;
             transition: all 0.18s ease-in-out;
-            box-shadow: 0 8px 18px rgba(0, 72, 135, 0.06);
+            box-shadow: 0 8px 18px rgba(0, 72, 135, 0.07);
         }
 
         div[role="radiogroup"] label:hover {
-            background: #EAF6FC;
+            background: #FFFFFF;
             border-color: #0078B8;
             transform: translateX(3px);
         }
@@ -207,7 +216,6 @@ st.markdown(
         }
 
         .sidebar-info {
-            margin-top: 28px;
             padding: 20px;
             border-radius: 24px;
             color: #FFFFFF;
@@ -899,7 +907,13 @@ def render_custom_sidebar():
             unsafe_allow_html=True,
         )
 
-    st.markdown('<div class="sidebar-title">Navigasi Sistem</div>', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="sidebar-nav-card">
+            <div class="sidebar-title">Navigasi Sistem</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     menu_choice = st.radio(
         "Menu",
@@ -911,6 +925,8 @@ def render_custom_sidebar():
         ],
         label_visibility="collapsed",
     )
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown(
         """

@@ -119,19 +119,17 @@ st.markdown(
 
         header[data-testid="stHeader"] {
             background: transparent;
-            height: 0rem;
+            height: 3rem;
         }
 
         div[data-testid="stToolbar"] {
             display: none !important;
             visibility: hidden !important;
-            opacity: 0 !important;
         }
 
         div[data-testid="stDecoration"] {
             display: none !important;
             visibility: hidden !important;
-            opacity: 0 !important;
         }
 
         #MainMenu {
@@ -143,38 +141,39 @@ st.markdown(
         }
 
         /*
-        Sidebar dibuat permanen.
-        Tombol panah collapse/hide sidebar bawaan Streamlit disembunyikan.
-        Jadi menunya tidak bisa hilang secara tiba-tiba seperti niat manusia pas deadline.
+        JANGAN disembunyikan.
+        Tombol ini penting supaya kalau sidebar pernah tertutup,
+        kamu masih bisa membukanya lagi.
         */
         div[data-testid="collapsedControl"] {
-            display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            z-index: 999999 !important;
         }
 
         button[data-testid="baseButton-header"] {
-            display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            z-index: 999999 !important;
         }
 
         [data-testid="stSidebarCollapseButton"] {
-            display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            z-index: 999999 !important;
         }
 
         section[data-testid="stSidebar"] {
-            display: block !important;
-            visibility: visible !important;
-            min-width: 315px !important;
-            max-width: 315px !important;
-            width: 315px !important;
             background:
                 linear-gradient(180deg, #FFFFFF 0%, #F0F8FD 46%, #0078B8 100%);
             border-right: 1px solid #D8E8F3;
             box-shadow: 10px 0 30px rgba(0, 64, 116, 0.08);
+            min-width: 315px !important;
+            max-width: 315px !important;
+            width: 315px !important;
         }
 
         section[data-testid="stSidebar"] > div {
@@ -227,7 +226,7 @@ st.markdown(
         }
 
         div[role="radiogroup"] label {
-            background: rgba(255, 255, 255, 0.90);
+            background: rgba(255, 255, 255, 0.92);
             border: 1px solid rgba(0, 120, 184, 0.13);
             padding: 14px 15px;
             border-radius: 16px;

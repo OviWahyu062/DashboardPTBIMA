@@ -336,8 +336,8 @@ st.markdown(
             background: #FFFFFF;
             border: 1px solid #E1EBF5;
             border-radius: 22px;
-            padding: 20px;
-            min-height: 145px;
+            padding: 18px 18px;
+            min-height: 150px;
             box-shadow: 0 13px 30px rgba(0, 65, 120, 0.07);
             position: relative;
             overflow: hidden;
@@ -352,14 +352,16 @@ st.markdown(
             top: -50px;
             background: rgba(0, 120, 184, 0.08);
             border-radius: 999px;
+            z-index: 0;
         }
 
         .metric-row {
             display: flex;
-            align-items: center;
-            gap: 13px;
+            align-items: flex-start;
+            gap: 12px;
             position: relative;
             z-index: 2;
+            width: 100%;
         }
 
         .metric-icon {
@@ -388,22 +390,33 @@ st.markdown(
             background: linear-gradient(135deg, #4869E8, #2545B8);
         }
 
+        .metric-content {
+            min-width: 0;
+            width: 100%;
+            flex: 1;
+        }
+
         .metric-label {
             color: #637D96;
             font-size: 12px;
             font-weight: 800;
-            margin-bottom: 4px;
+            margin-bottom: 5px;
+            line-height: 1.35;
         }
 
         .metric-value {
             color: #092D55;
-            font-size: 22px;
+            font-size: clamp(17px, 1.15vw, 23px);
             font-weight: 800;
-            line-height: 1.2;
+            line-height: 1.22;
+            max-width: 100%;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         .metric-caption {
-            margin-top: 15px;
+            margin-top: 16px;
             padding-top: 12px;
             border-top: 1px solid #EEF4F9;
             color: #6A829A;
@@ -411,6 +424,7 @@ st.markdown(
             font-weight: 600;
             position: relative;
             z-index: 2;
+            line-height: 1.45;
         }
 
         .section-title {
@@ -854,6 +868,34 @@ def format_rupiah(value):
         return "Rp 0"
 
 
+def format_rupiah_ringkas(value):
+    try:
+        angka = float(value)
+        tanda = "-" if angka < 0 else ""
+        angka_abs = abs(angka)
+
+        if angka_abs >= 1_000_000_000_000:
+            hasil = angka_abs / 1_000_000_000_000
+            return f"Rp {tanda}{hasil:,.2f} T".replace(",", "X").replace(".", ",").replace("X", ".")
+
+        if angka_abs >= 1_000_000_000:
+            hasil = angka_abs / 1_000_000_000
+            return f"Rp {tanda}{hasil:,.2f} M".replace(",", "X").replace(".", ",").replace("X", ".")
+
+        if angka_abs >= 1_000_000:
+            hasil = angka_abs / 1_000_000
+            return f"Rp {tanda}{hasil:,.2f} Jt".replace(",", "X").replace(".", ",").replace("X", ".")
+
+        if angka_abs >= 1_000:
+            hasil = angka_abs / 1_000
+            return f"Rp {tanda}{hasil:,.2f} Rb".replace(",", "X").replace(".", ",").replace("X", ".")
+
+        return f"Rp {tanda}{angka_abs:,.0f}".replace(",", ".")
+
+    except Exception:
+        return "Rp 0"
+
+
 def format_number(value):
     try:
         return f"{int(value):,}".replace(",", ".")
@@ -990,7 +1032,7 @@ def render_metric_card(title, value, caption, icon, color_class=""):
         <div class="metric-card">
             <div class="metric-row">
                 <div class="metric-icon {color_class}">{icon}</div>
-                <div>
+                <div class="metric-content">
                     <div class="metric-label">{title}</div>
                     <div class="metric-value">{value}</div>
                 </div>
@@ -1178,10 +1220,10 @@ with main_col:
                 render_metric_card("Total Paket PO", format_number(total_po), "Jumlah Purchasing Document unik", "📦")
 
             with col3:
-                render_metric_card("Net Order Value", format_rupiah(total_order), "Total Net Order Value", "💼", "teal")
+                render_metric_card("Net Order Value", format_rupiah_ringkas(total_order), "Total Net Order Value", "💼", "teal")
 
             with col4:
-                render_metric_card("Total Efisiensi", format_rupiah(total_efisiensi), "Akumulasi nilai efisiensi", "📈", "green")
+                render_metric_card("Total Efisiensi", format_rupiah_ringkas(total_efisiensi), "Akumulasi nilai efisiensi", "📈", "green")
 
             with col5:
                 render_metric_card("Rata-rata Lama PO", f"{avg_lama_proses:.1f} Hari", "Rata-rata lama proses PO", "⏱️", "purple")

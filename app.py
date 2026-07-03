@@ -119,14 +119,19 @@ st.markdown(
 
         header[data-testid="stHeader"] {
             background: transparent;
+            height: 0rem;
         }
 
         div[data-testid="stToolbar"] {
-            display: none;
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
         }
 
         div[data-testid="stDecoration"] {
-            display: none;
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
         }
 
         #MainMenu {
@@ -137,13 +142,35 @@ st.markdown(
             visibility: hidden;
         }
 
+        /*
+        Sidebar dibuat permanen.
+        Tombol panah collapse/hide sidebar bawaan Streamlit disembunyikan.
+        Jadi menunya tidak bisa hilang secara tiba-tiba seperti niat manusia pas deadline.
+        */
         div[data-testid="collapsedControl"] {
-            display: flex !important;
-            visibility: visible !important;
-            opacity: 1 !important;
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+        }
+
+        button[data-testid="baseButton-header"] {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+        }
+
+        [data-testid="stSidebarCollapseButton"] {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
         }
 
         section[data-testid="stSidebar"] {
+            display: block !important;
+            visibility: visible !important;
+            min-width: 315px !important;
+            max-width: 315px !important;
+            width: 315px !important;
             background:
                 linear-gradient(180deg, #FFFFFF 0%, #F0F8FD 46%, #0078B8 100%);
             border-right: 1px solid #D8E8F3;
@@ -884,16 +911,6 @@ def clean_dashboard_numeric(df):
 # ==============================
 # KOMPONEN UI
 # ==============================
-
-def image_to_base64(path):
-    if not os.path.exists(path):
-        return None
-
-    with open(path, "rb") as image_file:
-        encoded = base64.b64encode(image_file.read()).decode()
-
-    return encoded
-
 
 def render_sidebar():
     with st.sidebar:

@@ -72,7 +72,7 @@ st.set_page_config(
     page_title="Dashboard Pengolahan PO",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 
@@ -85,20 +85,6 @@ st.markdown(
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-        :root {
-            --pelindo-blue: #0078B8;
-            --pelindo-dark: #003B70;
-            --pelindo-navy: #092D55;
-            --pelindo-light: #EAF6FC;
-            --pelindo-soft: #F4F8FC;
-            --pelindo-teal: #16A7A0;
-            --pelindo-green: #1EAD6F;
-            --text-main: #14213D;
-            --text-muted: #6B7F95;
-            --border-soft: #DDEAF4;
-            --white: #FFFFFF;
-        }
-
         html, body, [class*="css"] {
             font-family: 'Inter', sans-serif;
         }
@@ -110,26 +96,30 @@ st.markdown(
         }
 
         .block-container {
-            padding-top: 1.4rem;
-            padding-left: 2rem;
-            padding-right: 2rem;
+            padding-top: 1.2rem;
+            padding-left: 1.2rem;
+            padding-right: 1.4rem;
             padding-bottom: 2rem;
-            max-width: 1600px;
+            max-width: 1700px;
         }
 
         header[data-testid="stHeader"] {
             background: transparent;
-            height: 3rem;
+            height: 0rem;
         }
 
-        div[data-testid="stToolbar"] {
+        div[data-testid="stToolbar"],
+        div[data-testid="stDecoration"],
+        div[data-testid="collapsedControl"],
+        button[data-testid="baseButton-header"],
+        [data-testid="stSidebarCollapseButton"],
+        section[data-testid="stSidebar"] {
             display: none !important;
             visibility: hidden !important;
-        }
-
-        div[data-testid="stDecoration"] {
-            display: none !important;
-            visibility: hidden !important;
+            opacity: 0 !important;
+            width: 0px !important;
+            min-width: 0px !important;
+            max-width: 0px !important;
         }
 
         #MainMenu {
@@ -140,46 +130,16 @@ st.markdown(
             visibility: hidden;
         }
 
-        /*
-        JANGAN disembunyikan.
-        Tombol ini penting supaya kalau sidebar pernah tertutup,
-        kamu masih bisa membukanya lagi.
-        */
-        div[data-testid="collapsedControl"] {
-            display: flex !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            z-index: 999999 !important;
-        }
-
-        button[data-testid="baseButton-header"] {
-            display: flex !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            z-index: 999999 !important;
-        }
-
-        [data-testid="stSidebarCollapseButton"] {
-            display: flex !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            z-index: 999999 !important;
-        }
-
-        section[data-testid="stSidebar"] {
+        .sidebar-panel {
+            min-height: 92vh;
             background:
                 linear-gradient(180deg, #FFFFFF 0%, #F0F8FD 46%, #0078B8 100%);
-            border-right: 1px solid #D8E8F3;
-            box-shadow: 10px 0 30px rgba(0, 64, 116, 0.08);
-            min-width: 315px !important;
-            max-width: 315px !important;
-            width: 315px !important;
-        }
-
-        section[data-testid="stSidebar"] > div {
-            padding-top: 1.2rem;
-            padding-left: 1rem;
-            padding-right: 1rem;
+            border: 1px solid #D8E8F3;
+            border-radius: 26px;
+            padding: 18px;
+            box-shadow: 0 18px 40px rgba(0, 64, 116, 0.12);
+            position: sticky;
+            top: 18px;
         }
 
         .sidebar-logo-card {
@@ -187,14 +147,14 @@ st.markdown(
             border: 1px solid #E1EDF7;
             border-radius: 22px;
             padding: 20px 18px 16px 18px;
-            margin-bottom: 22px;
+            margin-bottom: 20px;
             box-shadow: 0 14px 30px rgba(0, 72, 135, 0.10);
             text-align: center;
         }
 
         .sidebar-logo-card img {
             width: 100%;
-            max-width: 215px;
+            max-width: 210px;
             display: block;
             margin: auto;
         }
@@ -225,6 +185,15 @@ st.markdown(
             margin-top: 2px;
         }
 
+        .sidebar-title {
+            color: #092D55;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.8px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
         div[role="radiogroup"] label {
             background: rgba(255, 255, 255, 0.92);
             border: 1px solid rgba(0, 120, 184, 0.13);
@@ -242,6 +211,13 @@ st.markdown(
             background: #EAF6FC;
             border-color: #0078B8;
             transform: translateX(3px);
+        }
+
+        div[role="radiogroup"] label:has(input:checked) {
+            background: linear-gradient(135deg, #0078B8, #005B9E);
+            color: #FFFFFF !important;
+            border-color: #0078B8;
+            box-shadow: 0 12px 24px rgba(0, 120, 184, 0.25);
         }
 
         .sidebar-info {
@@ -911,62 +887,67 @@ def clean_dashboard_numeric(df):
 # KOMPONEN UI
 # ==============================
 
-def render_sidebar():
-    with st.sidebar:
-        logo_base64 = image_to_base64(LOGO_PATH)
+def render_custom_sidebar():
+    st.markdown('<div class="sidebar-panel">', unsafe_allow_html=True)
 
-        if logo_base64:
-            st.markdown(
-                f"""
-                <div class="sidebar-logo-card">
-                    <img src="data:image/png;base64,{logo_base64}">
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                """
-                <div class="sidebar-logo-card">
-                    <div class="fallback-logo">
-                        <div class="pelindo">PELINDO</div>
-                        <div class="jasa">JASA MARITIM</div>
-                        <div class="bima">BIMA</div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+    logo_base64 = image_to_base64(LOGO_PATH)
 
-        menu_choice = st.radio(
-            "Menu",
-            [
-                "Dashboard",
-                "Entry Data Excel",
-                "Hasil Pengolahan Data",
-                "Database & Download",
-            ],
-            label_visibility="collapsed",
+    if logo_base64:
+        st.markdown(
+            f"""
+            <div class="sidebar-logo-card">
+                <img src="data:image/png;base64,{logo_base64}">
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-
+    else:
         st.markdown(
             """
-            <div class="sidebar-info">
-                <div class="sidebar-info-title">Procurement Dashboard</div>
-                <div class="sidebar-info-text">
-                    Sistem pengolahan data Purchase Order berbasis Excel,
-                    SQLite, dan visualisasi dashboard internal.
-                </div>
-                <div class="sidebar-user">
-                    <div class="sidebar-user-main">👤 Procurement Team</div>
-                    <div class="sidebar-user-sub">Internal User</div>
+            <div class="sidebar-logo-card">
+                <div class="fallback-logo">
+                    <div class="pelindo">PELINDO</div>
+                    <div class="jasa">JASA MARITIM</div>
+                    <div class="bima">BIMA</div>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        return menu_choice
+    st.markdown('<div class="sidebar-title">Navigasi Sistem</div>', unsafe_allow_html=True)
+
+    menu_choice = st.radio(
+        "Menu",
+        [
+            "Dashboard",
+            "Entry Data Excel",
+            "Hasil Pengolahan Data",
+            "Database & Download",
+        ],
+        label_visibility="collapsed",
+    )
+
+    st.markdown(
+        """
+        <div class="sidebar-info">
+            <div class="sidebar-info-title">Procurement Dashboard</div>
+            <div class="sidebar-info-text">
+                Sistem pengolahan data Purchase Order berbasis Excel,
+                SQLite, dan visualisasi dashboard internal.
+            </div>
+            <div class="sidebar-user">
+                <div class="sidebar-user-main">👤 Procurement Team</div>
+                <div class="sidebar-user-sub">Internal User</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    return menu_choice
 
 
 def render_header(title, subtitle):
@@ -1126,474 +1107,474 @@ def make_horizontal_bar(df, x_col, y_col, title, color):
 
 init_database()
 
-menu = render_sidebar()
+sidebar_col, main_col = st.columns([1.15, 4.2], gap="large")
 
+with sidebar_col:
+    menu = render_custom_sidebar()
 
-# ==============================
-# MENU 1: DASHBOARD
-# ==============================
+with main_col:
+    # ==============================
+    # MENU 1: DASHBOARD
+    # ==============================
 
-if menu == "Dashboard":
-    render_header(
-        "Sistem Pengelolaan Data Pengadaan",
-        "Dashboard ringkasan kinerja Purchase Order, efisiensi, dan lama proses PO."
-    )
-
-    render_hero()
-
-    df = read_table(PROCESSED_TABLE)
-
-    if df.empty:
-        render_warning(
-            "Belum ada data yang tersimpan. Silakan upload file Excel terlebih dahulu melalui menu <b>Entry Data Excel</b>."
+    if menu == "Dashboard":
+        render_header(
+            "Sistem Pengelolaan Data Pengadaan",
+            "Dashboard ringkasan kinerja Purchase Order, efisiensi, dan lama proses PO."
         )
 
-        col1, col2, col3, col4, col5 = st.columns(5)
+        render_hero()
 
-        with col1:
-            render_metric_card("Jumlah Data", "0", "Total baris data", "🗄️")
+        df = read_table(PROCESSED_TABLE)
 
-        with col2:
-            render_metric_card("Total Paket PO", "0", "Jumlah paket PO unik", "📦")
+        if df.empty:
+            render_warning(
+                "Belum ada data yang tersimpan. Silakan upload file Excel terlebih dahulu melalui menu <b>Entry Data Excel</b>."
+            )
 
-        with col3:
-            render_metric_card("Net Order Value", "Rp 0", "Total nilai order", "💼", "teal")
+            col1, col2, col3, col4, col5 = st.columns(5)
 
-        with col4:
-            render_metric_card("Total Efisiensi", "Rp 0", "Total efisiensi", "📈", "green")
+            with col1:
+                render_metric_card("Jumlah Data", "0", "Total baris data", "🗄️")
 
-        with col5:
-            render_metric_card("Rata-rata Lama PO", "0 Hari", "Rata-rata lama proses", "⏱️", "purple")
+            with col2:
+                render_metric_card("Total Paket PO", "0", "Jumlah paket PO unik", "📦")
 
-        st.write("")
+            with col3:
+                render_metric_card("Net Order Value", "Rp 0", "Total nilai order", "💼", "teal")
+
+            with col4:
+                render_metric_card("Total Efisiensi", "Rp 0", "Total efisiensi", "📈", "green")
+
+            with col5:
+                render_metric_card("Rata-rata Lama PO", "0 Hari", "Rata-rata lama proses", "⏱️", "purple")
+
+            st.write("")
+
+            with st.container(border=True):
+                render_section_title(
+                    "Cara Menggunakan Sistem",
+                    "Ikuti alur berikut agar data dashboard muncul."
+                )
+                st.markdown(
+                    """
+                    1. Buka menu **Entry Data Excel**.  
+                    2. Upload file Excel PO.  
+                    3. Klik tombol **Proses dan Simpan ke Database**.  
+                    4. Buka kembali menu **Dashboard** untuk melihat grafik dan rekap data.  
+                    5. Gunakan menu **Database & Download** untuk mengunduh hasil pengolahan.
+                    """
+                )
+
+        else:
+            df = clean_dashboard_numeric(df)
+
+            total_po = df["Purchasing Document"].nunique()
+            total_rows = len(df)
+            total_order = df["Net Order Value"].sum()
+            total_efisiensi = df["Efisiensi"].sum()
+            avg_lama_proses = df["Lama Proses PO"].mean()
+
+            col1, col2, col3, col4, col5 = st.columns(5)
+
+            with col1:
+                render_metric_card(
+                    "Jumlah Data",
+                    format_number(total_rows),
+                    "Total baris data",
+                    "🗄️"
+                )
+
+            with col2:
+                render_metric_card(
+                    "Total Paket PO",
+                    format_number(total_po),
+                    "Jumlah Purchasing Document unik",
+                    "📦"
+                )
+
+            with col3:
+                render_metric_card(
+                    "Net Order Value",
+                    format_rupiah(total_order),
+                    "Total Net Order Value",
+                    "💼",
+                    "teal"
+                )
+
+            with col4:
+                render_metric_card(
+                    "Total Efisiensi",
+                    format_rupiah(total_efisiensi),
+                    "Akumulasi nilai efisiensi",
+                    "📈",
+                    "green"
+                )
+
+            with col5:
+                render_metric_card(
+                    "Rata-rata Lama PO",
+                    f"{avg_lama_proses:.1f} Hari",
+                    "Rata-rata lama proses PO",
+                    "⏱️",
+                    "purple"
+                )
+
+            st.write("")
+
+            paket_po, efisiensi, lama_proses = make_rekap(df)
+
+            chart1, chart2, chart3 = st.columns(3)
+
+            with chart1:
+                with st.container(border=True):
+                    render_section_title(
+                        "1. Paket PO",
+                        "Jumlah paket PO berdasarkan Status Final."
+                    )
+                    fig = make_horizontal_bar(
+                        paket_po,
+                        "Jumlah Paket PO",
+                        "Status Final",
+                        "Jumlah Paket PO",
+                        "#0078B8"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+
+            with chart2:
+                with st.container(border=True):
+                    render_section_title(
+                        "2. Efisiensi",
+                        "Total efisiensi berdasarkan Status Final."
+                    )
+                    fig = make_horizontal_bar(
+                        efisiensi,
+                        "Total_Efisiensi",
+                        "Status Final",
+                        "Total Efisiensi",
+                        "#16A7A0"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+
+            with chart3:
+                with st.container(border=True):
+                    render_section_title(
+                        "3. Lama Proses PO",
+                        "Rata-rata lama proses PO berdasarkan Status Final."
+                    )
+                    fig = make_horizontal_bar(
+                        lama_proses,
+                        "Rata_Rata_Lama_Proses_PO",
+                        "Status Final",
+                        "Rata-rata Lama Proses PO",
+                        "#2B70D6"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+
+            st.write("")
+
+            table1, table2, table3 = st.columns(3)
+
+            with table1:
+                with st.container(border=True):
+                    render_section_title("Ringkasan Paket PO", "Tabel jumlah paket PO.")
+                    st.dataframe(paket_po, use_container_width=True, hide_index=True)
+
+            with table2:
+                with st.container(border=True):
+                    render_section_title("Ringkasan Efisiensi", "Tabel efisiensi pengadaan.")
+                    st.dataframe(efisiensi, use_container_width=True, hide_index=True)
+
+            with table3:
+                with st.container(border=True):
+                    render_section_title("Ringkasan Lama Proses PO", "Tabel rata-rata proses PO.")
+                    st.dataframe(lama_proses, use_container_width=True, hide_index=True)
+
+        render_footer()
+
+    # ==============================
+    # MENU 2: ENTRY DATA EXCEL
+    # ==============================
+
+    elif menu == "Entry Data Excel":
+        render_header(
+            "Entry Data Excel",
+            "Upload file Excel Purchase Order untuk diproses dan disimpan ke database."
+        )
+
+        render_info(
+            """
+            Upload file Excel dengan format kolom sesuai data PO.
+            Sistem akan membaca sheet <b>PO April 2026</b> sebagai data utama dan sheet
+            <b>KK Pemaketan</b> untuk mengambil informasi <b>Lama Proses PO</b>.
+            """
+        )
 
         with st.container(border=True):
             render_section_title(
-                "Cara Menggunakan Sistem",
-                "Ikuti alur berikut agar data dashboard muncul."
-            )
-            st.markdown(
-                """
-                1. Buka menu **Entry Data Excel**.  
-                2. Upload file Excel PO.  
-                3. Klik tombol **Proses dan Simpan ke Database**.  
-                4. Buka kembali menu **Dashboard** untuk melihat grafik dan rekap data.  
-                5. Gunakan menu **Database & Download** untuk mengunduh hasil pengolahan.
-                """
+                "Upload File Excel",
+                "Gunakan file Excel dengan format .xlsx, .xlsm, atau .xls."
             )
 
-    else:
-        df = clean_dashboard_numeric(df)
-
-        total_po = df["Purchasing Document"].nunique()
-        total_rows = len(df)
-        total_order = df["Net Order Value"].sum()
-        total_efisiensi = df["Efisiensi"].sum()
-        avg_lama_proses = df["Lama Proses PO"].mean()
-
-        col1, col2, col3, col4, col5 = st.columns(5)
-
-        with col1:
-            render_metric_card(
-                "Jumlah Data",
-                format_number(total_rows),
-                "Total baris data",
-                "🗄️"
+            uploaded_file = st.file_uploader(
+                "Upload file Excel",
+                type=["xlsx", "xlsm", "xls"]
             )
 
-        with col2:
-            render_metric_card(
-                "Total Paket PO",
-                format_number(total_po),
-                "Jumlah Purchasing Document unik",
-                "📦"
-            )
+        if uploaded_file is not None:
+            try:
+                df_po, df_kk, sheet_names = read_excel_file(uploaded_file)
 
-        with col3:
-            render_metric_card(
-                "Net Order Value",
-                format_rupiah(total_order),
-                "Total Net Order Value",
-                "💼",
-                "teal"
-            )
-
-        with col4:
-            render_metric_card(
-                "Total Efisiensi",
-                format_rupiah(total_efisiensi),
-                "Akumulasi nilai efisiensi",
-                "📈",
-                "green"
-            )
-
-        with col5:
-            render_metric_card(
-                "Rata-rata Lama PO",
-                f"{avg_lama_proses:.1f} Hari",
-                "Rata-rata lama proses PO",
-                "⏱️",
-                "purple"
-            )
-
-        st.write("")
-
-        paket_po, efisiensi, lama_proses = make_rekap(df)
-
-        chart1, chart2, chart3 = st.columns(3)
-
-        with chart1:
-            with st.container(border=True):
-                render_section_title(
-                    "1. Paket PO",
-                    "Jumlah paket PO berdasarkan Status Final."
-                )
-                fig = make_horizontal_bar(
-                    paket_po,
-                    "Jumlah Paket PO",
-                    "Status Final",
-                    "Jumlah Paket PO",
-                    "#0078B8"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-        with chart2:
-            with st.container(border=True):
-                render_section_title(
-                    "2. Efisiensi",
-                    "Total efisiensi berdasarkan Status Final."
-                )
-                fig = make_horizontal_bar(
-                    efisiensi,
-                    "Total_Efisiensi",
-                    "Status Final",
-                    "Total Efisiensi",
-                    "#16A7A0"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-        with chart3:
-            with st.container(border=True):
-                render_section_title(
-                    "3. Lama Proses PO",
-                    "Rata-rata lama proses PO berdasarkan Status Final."
-                )
-                fig = make_horizontal_bar(
-                    lama_proses,
-                    "Rata_Rata_Lama_Proses_PO",
-                    "Status Final",
-                    "Rata-rata Lama Proses PO",
-                    "#2B70D6"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-        st.write("")
-
-        table1, table2, table3 = st.columns(3)
-
-        with table1:
-            with st.container(border=True):
-                render_section_title("Ringkasan Paket PO", "Tabel jumlah paket PO.")
-                st.dataframe(paket_po, use_container_width=True, hide_index=True)
-
-        with table2:
-            with st.container(border=True):
-                render_section_title("Ringkasan Efisiensi", "Tabel efisiensi pengadaan.")
-                st.dataframe(efisiensi, use_container_width=True, hide_index=True)
-
-        with table3:
-            with st.container(border=True):
-                render_section_title("Ringkasan Lama Proses PO", "Tabel rata-rata proses PO.")
-                st.dataframe(lama_proses, use_container_width=True, hide_index=True)
-
-    render_footer()
-
-
-# ==============================
-# MENU 2: ENTRY DATA EXCEL
-# ==============================
-
-elif menu == "Entry Data Excel":
-    render_header(
-        "Entry Data Excel",
-        "Upload file Excel Purchase Order untuk diproses dan disimpan ke database."
-    )
-
-    render_info(
-        """
-        Upload file Excel dengan format kolom sesuai data PO.
-        Sistem akan membaca sheet <b>PO April 2026</b> sebagai data utama dan sheet
-        <b>KK Pemaketan</b> untuk mengambil informasi <b>Lama Proses PO</b>.
-        """
-    )
-
-    with st.container(border=True):
-        render_section_title(
-            "Upload File Excel",
-            "Gunakan file Excel dengan format .xlsx, .xlsm, atau .xls."
-        )
-
-        uploaded_file = st.file_uploader(
-            "Upload file Excel",
-            type=["xlsx", "xlsm", "xls"]
-        )
-
-    if uploaded_file is not None:
-        try:
-            df_po, df_kk, sheet_names = read_excel_file(uploaded_file)
-
-            render_success(
-                f"File <b>{uploaded_file.name}</b> berhasil dibaca. Sheet yang ditemukan: <b>{', '.join(sheet_names)}</b>."
-            )
-
-            missing_columns = validate_columns(df_po)
-
-            if missing_columns:
-                render_warning(
-                    "Format file belum sesuai. Kolom berikut belum ditemukan pada file Excel."
+                render_success(
+                    f"File <b>{uploaded_file.name}</b> berhasil dibaca. Sheet yang ditemukan: <b>{', '.join(sheet_names)}</b>."
                 )
 
-                with st.container(border=True):
-                    render_section_title(
-                        "Kolom yang Belum Ditemukan",
-                        "Pastikan nama kolom pada Excel sama persis."
-                    )
-                    st.write(missing_columns)
+                missing_columns = validate_columns(df_po)
 
-            else:
-                with st.container(border=True):
-                    render_section_title(
-                        "Preview Data Input",
-                        "Berikut 20 baris awal dari sheet PO yang akan diproses."
-                    )
-                    st.dataframe(df_po.head(20), use_container_width=True)
-
-                if st.button("Proses dan Simpan ke Database"):
-                    df_processed = process_po_data(df_po, df_kk)
-
-                    save_dataframe_to_db(
-                        df_po,
-                        df_processed,
-                        mode="replace"
-                    )
-
-                    save_upload_history(
-                        uploaded_file.name,
-                        len(df_processed)
-                    )
-
-                    render_success(
-                        "Data berhasil diproses dan disimpan ke database. Dashboard sudah dapat digunakan."
+                if missing_columns:
+                    render_warning(
+                        "Format file belum sesuai. Kolom berikut belum ditemukan pada file Excel."
                     )
 
                     with st.container(border=True):
                         render_section_title(
-                            "Preview Hasil Pengolahan",
-                            "Kolom hasil olahan sudah ditambahkan ke data PO."
+                            "Kolom yang Belum Ditemukan",
+                            "Pastikan nama kolom pada Excel sama persis."
                         )
-                        st.dataframe(df_processed.head(20), use_container_width=True)
+                        st.write(missing_columns)
 
-                    excel_bytes = dataframe_to_excel_bytes(
+                else:
+                    with st.container(border=True):
+                        render_section_title(
+                            "Preview Data Input",
+                            "Berikut 20 baris awal dari sheet PO yang akan diproses."
+                        )
+                        st.dataframe(df_po.head(20), use_container_width=True)
+
+                    if st.button("Proses dan Simpan ke Database"):
+                        df_processed = process_po_data(df_po, df_kk)
+
+                        save_dataframe_to_db(
+                            df_po,
+                            df_processed,
+                            mode="replace"
+                        )
+
+                        save_upload_history(
+                            uploaded_file.name,
+                            len(df_processed)
+                        )
+
+                        render_success(
+                            "Data berhasil diproses dan disimpan ke database. Dashboard sudah dapat digunakan."
+                        )
+
+                        with st.container(border=True):
+                            render_section_title(
+                                "Preview Hasil Pengolahan",
+                                "Kolom hasil olahan sudah ditambahkan ke data PO."
+                            )
+                            st.dataframe(df_processed.head(20), use_container_width=True)
+
+                        excel_bytes = dataframe_to_excel_bytes(
+                            {
+                                "Data Mentah": df_po,
+                                "Hasil Pengolahan": df_processed,
+                            }
+                        )
+
+                        st.download_button(
+                            label="Download Hasil Pengolahan Excel",
+                            data=excel_bytes,
+                            file_name="hasil_pengolahan_po.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        )
+
+            except Exception as e:
+                render_warning("File gagal diproses. Cek kembali format file Excel dan nama sheet.")
+                st.exception(e)
+
+        render_footer()
+
+    # ==============================
+    # MENU 3: HASIL PENGOLAHAN DATA
+    # ==============================
+
+    elif menu == "Hasil Pengolahan Data":
+        render_header(
+            "Hasil Pengolahan Data",
+            "Menampilkan data PO yang sudah diproses dan ditambahkan kolom hasil olahan."
+        )
+
+        df = read_table(PROCESSED_TABLE)
+
+        if df.empty:
+            render_warning("Belum ada data hasil pengolahan.")
+
+        else:
+            render_info(
+                """
+                Data berikut merupakan hasil pengolahan dari file Excel yang sudah di-upload.
+                Kolom tambahan mencakup Total Valuation Price, PIR, Status Final, PRJ,
+                Efisiensi, Prosentase, dan Lama Proses PO.
+                """
+            )
+
+            with st.container(border=True):
+                render_section_title(
+                    "Tabel Hasil Pengolahan",
+                    "Data sudah diproses berdasarkan rumus dan aturan klasifikasi."
+                )
+                st.dataframe(df, use_container_width=True)
+
+            excel_bytes = dataframe_to_excel_bytes(
+                {
+                    "Hasil Pengolahan": df
+                }
+            )
+
+            st.download_button(
+                label="Download Hasil Pengolahan",
+                data=excel_bytes,
+                file_name="hasil_pengolahan_po.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+
+        render_footer()
+
+    # ==============================
+    # MENU 4: DATABASE & DOWNLOAD
+    # ==============================
+
+    elif menu == "Database & Download":
+        render_header(
+            "Database & Download",
+            "Menampilkan database tersimpan dan menyediakan fitur export data."
+        )
+
+        with st.container(border=True):
+            render_section_title(
+                "Riwayat Upload",
+                "Daftar file Excel yang pernah diproses oleh sistem."
+            )
+
+            upload_history = read_table(UPLOAD_TABLE)
+
+            if upload_history.empty:
+                st.info("Belum ada riwayat upload.")
+            else:
+                st.dataframe(upload_history, use_container_width=True, hide_index=True)
+
+        st.write("")
+
+        tab1, tab2, tab3 = st.tabs(
+            [
+                "Data Mentah",
+                "Data Hasil Pengolahan",
+                "Download Database",
+            ]
+        )
+
+        with tab1:
+            with st.container(border=True):
+                render_section_title(
+                    "Data Mentah Tersimpan",
+                    "Data asli hasil upload dari file Excel."
+                )
+
+                df_raw = read_table(RAW_TABLE)
+
+                if df_raw.empty:
+                    st.info("Belum ada data mentah tersimpan.")
+                else:
+                    st.dataframe(df_raw, use_container_width=True)
+
+                    raw_excel = dataframe_to_excel_bytes(
                         {
-                            "Data Mentah": df_po,
-                            "Hasil Pengolahan": df_processed,
+                            "Data Mentah": df_raw
                         }
                     )
 
                     st.download_button(
-                        label="Download Hasil Pengolahan Excel",
-                        data=excel_bytes,
-                        file_name="hasil_pengolahan_po.xlsx",
+                        label="Download Data Mentah Excel",
+                        data=raw_excel,
+                        file_name="data_mentah_po.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     )
 
-        except Exception as e:
-            render_warning("File gagal diproses. Cek kembali format file Excel dan nama sheet.")
-            st.exception(e)
-
-    render_footer()
-
-
-# ==============================
-# MENU 3: HASIL PENGOLAHAN DATA
-# ==============================
-
-elif menu == "Hasil Pengolahan Data":
-    render_header(
-        "Hasil Pengolahan Data",
-        "Menampilkan data PO yang sudah diproses dan ditambahkan kolom hasil olahan."
-    )
-
-    df = read_table(PROCESSED_TABLE)
-
-    if df.empty:
-        render_warning("Belum ada data hasil pengolahan.")
-
-    else:
-        render_info(
-            """
-            Data berikut merupakan hasil pengolahan dari file Excel yang sudah di-upload.
-            Kolom tambahan mencakup Total Valuation Price, PIR, Status Final, PRJ,
-            Efisiensi, Prosentase, dan Lama Proses PO.
-            """
-        )
-
-        with st.container(border=True):
-            render_section_title(
-                "Tabel Hasil Pengolahan",
-                "Data sudah diproses berdasarkan rumus dan aturan klasifikasi."
-            )
-            st.dataframe(df, use_container_width=True)
-
-        excel_bytes = dataframe_to_excel_bytes(
-            {
-                "Hasil Pengolahan": df
-            }
-        )
-
-        st.download_button(
-            label="Download Hasil Pengolahan",
-            data=excel_bytes,
-            file_name="hasil_pengolahan_po.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-
-    render_footer()
-
-
-# ==============================
-# MENU 4: DATABASE & DOWNLOAD
-# ==============================
-
-elif menu == "Database & Download":
-    render_header(
-        "Database & Download",
-        "Menampilkan database tersimpan dan menyediakan fitur export data."
-    )
-
-    with st.container(border=True):
-        render_section_title(
-            "Riwayat Upload",
-            "Daftar file Excel yang pernah diproses oleh sistem."
-        )
-
-        upload_history = read_table(UPLOAD_TABLE)
-
-        if upload_history.empty:
-            st.info("Belum ada riwayat upload.")
-        else:
-            st.dataframe(upload_history, use_container_width=True, hide_index=True)
-
-    st.write("")
-
-    tab1, tab2, tab3 = st.tabs(
-        [
-            "Data Mentah",
-            "Data Hasil Pengolahan",
-            "Download Database",
-        ]
-    )
-
-    with tab1:
-        with st.container(border=True):
-            render_section_title(
-                "Data Mentah Tersimpan",
-                "Data asli hasil upload dari file Excel."
-            )
-
-            df_raw = read_table(RAW_TABLE)
-
-            if df_raw.empty:
-                st.info("Belum ada data mentah tersimpan.")
-            else:
-                st.dataframe(df_raw, use_container_width=True)
-
-                raw_excel = dataframe_to_excel_bytes(
-                    {
-                        "Data Mentah": df_raw
-                    }
+        with tab2:
+            with st.container(border=True):
+                render_section_title(
+                    "Data Hasil Pengolahan Tersimpan",
+                    "Data PO yang sudah ditambahkan hasil perhitungan dan klasifikasi."
                 )
 
-                st.download_button(
-                    label="Download Data Mentah Excel",
-                    data=raw_excel,
-                    file_name="data_mentah_po.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                )
+                df_processed = read_table(PROCESSED_TABLE)
 
-    with tab2:
-        with st.container(border=True):
-            render_section_title(
-                "Data Hasil Pengolahan Tersimpan",
-                "Data PO yang sudah ditambahkan hasil perhitungan dan klasifikasi."
-            )
+                if df_processed.empty:
+                    st.info("Belum ada data hasil pengolahan tersimpan.")
 
-            df_processed = read_table(PROCESSED_TABLE)
+                else:
+                    st.dataframe(df_processed, use_container_width=True)
 
-            if df_processed.empty:
-                st.info("Belum ada data hasil pengolahan tersimpan.")
+                    paket_po, efisiensi, lama_proses = make_rekap(df_processed)
 
-            else:
-                st.dataframe(df_processed, use_container_width=True)
-
-                paket_po, efisiensi, lama_proses = make_rekap(df_processed)
-
-                processed_excel = dataframe_to_excel_bytes(
-                    {
-                        "Hasil Pengolahan": df_processed,
-                        "Rekap Paket PO": paket_po,
-                        "Rekap Efisiensi": efisiensi,
-                        "Rekap Lama Proses PO": lama_proses,
-                    }
-                )
-
-                st.download_button(
-                    label="Download Hasil Pengolahan & Rekap",
-                    data=processed_excel,
-                    file_name="hasil_pengolahan_dan_rekap_po.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                )
-
-    with tab3:
-        with st.container(border=True):
-            render_section_title(
-                "Download Semua Database",
-                "Export seluruh data mentah, hasil olahan, dan rekap dashboard."
-            )
-
-            df_raw = read_table(RAW_TABLE)
-            df_processed = read_table(PROCESSED_TABLE)
-
-            if df_processed.empty:
-                st.info("Belum ada database yang bisa diunduh.")
-
-            else:
-                paket_po, efisiensi, lama_proses = make_rekap(df_processed)
-
-                excel_bytes = dataframe_to_excel_bytes(
-                    {
-                        "Data Mentah": df_raw,
-                        "Hasil Pengolahan": df_processed,
-                        "Rekap Paket PO": paket_po,
-                        "Rekap Efisiensi": efisiensi,
-                        "Rekap Lama Proses PO": lama_proses,
-                    }
-                )
-
-                st.download_button(
-                    label="Download Semua Data dalam Excel",
-                    data=excel_bytes,
-                    file_name="database_po_export.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                )
-
-            if os.path.exists(DB_PATH):
-                with open(DB_PATH, "rb") as db_file:
-                    st.download_button(
-                        label="Download Database SQLite (.db)",
-                        data=db_file,
-                        file_name="po_database.db",
-                        mime="application/octet-stream",
+                    processed_excel = dataframe_to_excel_bytes(
+                        {
+                            "Hasil Pengolahan": df_processed,
+                            "Rekap Paket PO": paket_po,
+                            "Rekap Efisiensi": efisiensi,
+                            "Rekap Lama Proses PO": lama_proses,
+                        }
                     )
 
-    render_footer()
+                    st.download_button(
+                        label="Download Hasil Pengolahan & Rekap",
+                        data=processed_excel,
+                        file_name="hasil_pengolahan_dan_rekap_po.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    )
+
+        with tab3:
+            with st.container(border=True):
+                render_section_title(
+                    "Download Semua Database",
+                    "Export seluruh data mentah, hasil olahan, dan rekap dashboard."
+                )
+
+                df_raw = read_table(RAW_TABLE)
+                df_processed = read_table(PROCESSED_TABLE)
+
+                if df_processed.empty:
+                    st.info("Belum ada database yang bisa diunduh.")
+
+                else:
+                    paket_po, efisiensi, lama_proses = make_rekap(df_processed)
+
+                    excel_bytes = dataframe_to_excel_bytes(
+                        {
+                            "Data Mentah": df_raw,
+                            "Hasil Pengolahan": df_processed,
+                            "Rekap Paket PO": paket_po,
+                            "Rekap Efisiensi": efisiensi,
+                            "Rekap Lama Proses PO": lama_proses,
+                        }
+                    )
+
+                    st.download_button(
+                        label="Download Semua Data dalam Excel",
+                        data=excel_bytes,
+                        file_name="database_po_export.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    )
+
+                if os.path.exists(DB_PATH):
+                    with open(DB_PATH, "rb") as db_file:
+                        st.download_button(
+                            label="Download Database SQLite (.db)",
+                            data=db_file,
+                            file_name="po_database.db",
+                            mime="application/octet-stream",
+                        )
+
+        render_footer()

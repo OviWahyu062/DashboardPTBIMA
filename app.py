@@ -23,7 +23,6 @@ UPLOAD_TABLE = "uploaded_files"
 PO_SHEET_NAME = "PO April 2026"
 KK_SHEET_NAME = "KK Pemaketan"
 
-
 REQUIRED_COLUMNS = [
     "Purchasing Document",
     "Item",
@@ -50,7 +49,6 @@ REQUIRED_COLUMNS = [
     "Material Group",
     "Valuation Price",
 ]
-
 
 NUMERIC_COLUMNS = [
     "Net Order Value",
@@ -130,31 +128,19 @@ st.markdown(
             visibility: hidden;
         }
 
-        .sidebar-panel {
-            min-height: 92vh;
-            background:
-                linear-gradient(180deg, #FFFFFF 0%, #F0F8FD 46%, #0078B8 100%);
-            border: 1px solid #D8E8F3;
-            border-radius: 26px;
-            padding: 18px;
-            box-shadow: 0 18px 40px rgba(0, 64, 116, 0.12);
-            position: sticky;
-            top: 18px;
-        }
-
         .sidebar-logo-card {
             background: #FFFFFF;
-            border: 1px solid #E1EDF7;
-            border-radius: 22px;
-            padding: 20px 18px 16px 18px;
-            margin-bottom: 20px;
-            box-shadow: 0 14px 30px rgba(0, 72, 135, 0.10);
+            border: 1px solid #DDEAF4;
+            border-radius: 28px;
+            padding: 26px 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 18px 40px rgba(0, 72, 135, 0.12);
             text-align: center;
         }
 
         .sidebar-logo-card img {
             width: 100%;
-            max-width: 210px;
+            max-width: 220px;
             display: block;
             margin: auto;
         }
@@ -195,16 +181,16 @@ st.markdown(
         }
 
         div[role="radiogroup"] label {
-            background: rgba(255, 255, 255, 0.92);
-            border: 1px solid rgba(0, 120, 184, 0.13);
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(0, 120, 184, 0.15);
             padding: 14px 15px;
-            border-radius: 16px;
-            margin-bottom: 10px;
+            border-radius: 18px;
+            margin-bottom: 12px;
             color: #093057;
             font-weight: 700;
             font-size: 14px;
             transition: all 0.18s ease-in-out;
-            box-shadow: 0 6px 16px rgba(0, 72, 135, 0.05);
+            box-shadow: 0 8px 18px rgba(0, 72, 135, 0.06);
         }
 
         div[role="radiogroup"] label:hover {
@@ -217,30 +203,30 @@ st.markdown(
             background: linear-gradient(135deg, #0078B8, #005B9E);
             color: #FFFFFF !important;
             border-color: #0078B8;
-            box-shadow: 0 12px 24px rgba(0, 120, 184, 0.25);
+            box-shadow: 0 14px 26px rgba(0, 120, 184, 0.26);
         }
 
         .sidebar-info {
-            margin-top: 24px;
-            padding: 18px;
-            border-radius: 22px;
+            margin-top: 28px;
+            padding: 20px;
+            border-radius: 24px;
             color: #FFFFFF;
             background:
                 radial-gradient(circle at top left, rgba(255,255,255,0.32), rgba(255,255,255,0.06) 35%, transparent 52%),
                 linear-gradient(135deg, #0089CE, #005B9E 68%, #003B70);
-            box-shadow: 0 18px 40px rgba(0, 64, 116, 0.32);
+            box-shadow: 0 18px 40px rgba(0, 64, 116, 0.30);
         }
 
         .sidebar-info-title {
-            font-size: 15px;
+            font-size: 16px;
             font-weight: 800;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }
 
         .sidebar-info-text {
             font-size: 12px;
-            line-height: 1.55;
-            opacity: 0.94;
+            line-height: 1.6;
+            opacity: 0.95;
         }
 
         .sidebar-user {
@@ -888,8 +874,6 @@ def clean_dashboard_numeric(df):
 # ==============================
 
 def render_custom_sidebar():
-    st.markdown('<div class="sidebar-panel">', unsafe_allow_html=True)
-
     logo_base64 = image_to_base64(LOGO_PATH)
 
     if logo_base64:
@@ -944,8 +928,6 @@ def render_custom_sidebar():
         """,
         unsafe_allow_html=True,
     )
-
-    st.markdown("</div>", unsafe_allow_html=True)
 
     return menu_choice
 
@@ -1113,10 +1095,6 @@ with sidebar_col:
     menu = render_custom_sidebar()
 
 with main_col:
-    # ==============================
-    # MENU 1: DASHBOARD
-    # ==============================
-
     if menu == "Dashboard":
         render_header(
             "Sistem Pengelolaan Data Pengadaan",
@@ -1178,47 +1156,19 @@ with main_col:
             col1, col2, col3, col4, col5 = st.columns(5)
 
             with col1:
-                render_metric_card(
-                    "Jumlah Data",
-                    format_number(total_rows),
-                    "Total baris data",
-                    "🗄️"
-                )
+                render_metric_card("Jumlah Data", format_number(total_rows), "Total baris data", "🗄️")
 
             with col2:
-                render_metric_card(
-                    "Total Paket PO",
-                    format_number(total_po),
-                    "Jumlah Purchasing Document unik",
-                    "📦"
-                )
+                render_metric_card("Total Paket PO", format_number(total_po), "Jumlah Purchasing Document unik", "📦")
 
             with col3:
-                render_metric_card(
-                    "Net Order Value",
-                    format_rupiah(total_order),
-                    "Total Net Order Value",
-                    "💼",
-                    "teal"
-                )
+                render_metric_card("Net Order Value", format_rupiah(total_order), "Total Net Order Value", "💼", "teal")
 
             with col4:
-                render_metric_card(
-                    "Total Efisiensi",
-                    format_rupiah(total_efisiensi),
-                    "Akumulasi nilai efisiensi",
-                    "📈",
-                    "green"
-                )
+                render_metric_card("Total Efisiensi", format_rupiah(total_efisiensi), "Akumulasi nilai efisiensi", "📈", "green")
 
             with col5:
-                render_metric_card(
-                    "Rata-rata Lama PO",
-                    f"{avg_lama_proses:.1f} Hari",
-                    "Rata-rata lama proses PO",
-                    "⏱️",
-                    "purple"
-                )
+                render_metric_card("Rata-rata Lama PO", f"{avg_lama_proses:.1f} Hari", "Rata-rata lama proses PO", "⏱️", "purple")
 
             st.write("")
 
@@ -1228,47 +1178,20 @@ with main_col:
 
             with chart1:
                 with st.container(border=True):
-                    render_section_title(
-                        "1. Paket PO",
-                        "Jumlah paket PO berdasarkan Status Final."
-                    )
-                    fig = make_horizontal_bar(
-                        paket_po,
-                        "Jumlah Paket PO",
-                        "Status Final",
-                        "Jumlah Paket PO",
-                        "#0078B8"
-                    )
+                    render_section_title("1. Paket PO", "Jumlah paket PO berdasarkan Status Final.")
+                    fig = make_horizontal_bar(paket_po, "Jumlah Paket PO", "Status Final", "Jumlah Paket PO", "#0078B8")
                     st.plotly_chart(fig, use_container_width=True)
 
             with chart2:
                 with st.container(border=True):
-                    render_section_title(
-                        "2. Efisiensi",
-                        "Total efisiensi berdasarkan Status Final."
-                    )
-                    fig = make_horizontal_bar(
-                        efisiensi,
-                        "Total_Efisiensi",
-                        "Status Final",
-                        "Total Efisiensi",
-                        "#16A7A0"
-                    )
+                    render_section_title("2. Efisiensi", "Total efisiensi berdasarkan Status Final.")
+                    fig = make_horizontal_bar(efisiensi, "Total_Efisiensi", "Status Final", "Total Efisiensi", "#16A7A0")
                     st.plotly_chart(fig, use_container_width=True)
 
             with chart3:
                 with st.container(border=True):
-                    render_section_title(
-                        "3. Lama Proses PO",
-                        "Rata-rata lama proses PO berdasarkan Status Final."
-                    )
-                    fig = make_horizontal_bar(
-                        lama_proses,
-                        "Rata_Rata_Lama_Proses_PO",
-                        "Status Final",
-                        "Rata-rata Lama Proses PO",
-                        "#2B70D6"
-                    )
+                    render_section_title("3. Lama Proses PO", "Rata-rata lama proses PO berdasarkan Status Final.")
+                    fig = make_horizontal_bar(lama_proses, "Rata_Rata_Lama_Proses_PO", "Status Final", "Rata-rata Lama Proses PO", "#2B70D6")
                     st.plotly_chart(fig, use_container_width=True)
 
             st.write("")
@@ -1292,10 +1215,6 @@ with main_col:
 
         render_footer()
 
-    # ==============================
-    # MENU 2: ENTRY DATA EXCEL
-    # ==============================
-
     elif menu == "Entry Data Excel":
         render_header(
             "Entry Data Excel",
@@ -1311,10 +1230,7 @@ with main_col:
         )
 
         with st.container(border=True):
-            render_section_title(
-                "Upload File Excel",
-                "Gunakan file Excel dengan format .xlsx, .xlsm, atau .xls."
-            )
+            render_section_title("Upload File Excel", "Gunakan file Excel dengan format .xlsx, .xlsm, atau .xls.")
 
             uploaded_file = st.file_uploader(
                 "Upload file Excel",
@@ -1332,48 +1248,27 @@ with main_col:
                 missing_columns = validate_columns(df_po)
 
                 if missing_columns:
-                    render_warning(
-                        "Format file belum sesuai. Kolom berikut belum ditemukan pada file Excel."
-                    )
+                    render_warning("Format file belum sesuai. Kolom berikut belum ditemukan pada file Excel.")
 
                     with st.container(border=True):
-                        render_section_title(
-                            "Kolom yang Belum Ditemukan",
-                            "Pastikan nama kolom pada Excel sama persis."
-                        )
+                        render_section_title("Kolom yang Belum Ditemukan", "Pastikan nama kolom pada Excel sama persis.")
                         st.write(missing_columns)
 
                 else:
                     with st.container(border=True):
-                        render_section_title(
-                            "Preview Data Input",
-                            "Berikut 20 baris awal dari sheet PO yang akan diproses."
-                        )
+                        render_section_title("Preview Data Input", "Berikut 20 baris awal dari sheet PO yang akan diproses.")
                         st.dataframe(df_po.head(20), use_container_width=True)
 
                     if st.button("Proses dan Simpan ke Database"):
                         df_processed = process_po_data(df_po, df_kk)
 
-                        save_dataframe_to_db(
-                            df_po,
-                            df_processed,
-                            mode="replace"
-                        )
+                        save_dataframe_to_db(df_po, df_processed, mode="replace")
+                        save_upload_history(uploaded_file.name, len(df_processed))
 
-                        save_upload_history(
-                            uploaded_file.name,
-                            len(df_processed)
-                        )
-
-                        render_success(
-                            "Data berhasil diproses dan disimpan ke database. Dashboard sudah dapat digunakan."
-                        )
+                        render_success("Data berhasil diproses dan disimpan ke database. Dashboard sudah dapat digunakan.")
 
                         with st.container(border=True):
-                            render_section_title(
-                                "Preview Hasil Pengolahan",
-                                "Kolom hasil olahan sudah ditambahkan ke data PO."
-                            )
+                            render_section_title("Preview Hasil Pengolahan", "Kolom hasil olahan sudah ditambahkan ke data PO.")
                             st.dataframe(df_processed.head(20), use_container_width=True)
 
                         excel_bytes = dataframe_to_excel_bytes(
@@ -1396,10 +1291,6 @@ with main_col:
 
         render_footer()
 
-    # ==============================
-    # MENU 3: HASIL PENGOLAHAN DATA
-    # ==============================
-
     elif menu == "Hasil Pengolahan Data":
         render_header(
             "Hasil Pengolahan Data",
@@ -1421,10 +1312,7 @@ with main_col:
             )
 
             with st.container(border=True):
-                render_section_title(
-                    "Tabel Hasil Pengolahan",
-                    "Data sudah diproses berdasarkan rumus dan aturan klasifikasi."
-                )
+                render_section_title("Tabel Hasil Pengolahan", "Data sudah diproses berdasarkan rumus dan aturan klasifikasi.")
                 st.dataframe(df, use_container_width=True)
 
             excel_bytes = dataframe_to_excel_bytes(
@@ -1442,10 +1330,6 @@ with main_col:
 
         render_footer()
 
-    # ==============================
-    # MENU 4: DATABASE & DOWNLOAD
-    # ==============================
-
     elif menu == "Database & Download":
         render_header(
             "Database & Download",
@@ -1453,10 +1337,7 @@ with main_col:
         )
 
         with st.container(border=True):
-            render_section_title(
-                "Riwayat Upload",
-                "Daftar file Excel yang pernah diproses oleh sistem."
-            )
+            render_section_title("Riwayat Upload", "Daftar file Excel yang pernah diproses oleh sistem.")
 
             upload_history = read_table(UPLOAD_TABLE)
 
@@ -1477,10 +1358,7 @@ with main_col:
 
         with tab1:
             with st.container(border=True):
-                render_section_title(
-                    "Data Mentah Tersimpan",
-                    "Data asli hasil upload dari file Excel."
-                )
+                render_section_title("Data Mentah Tersimpan", "Data asli hasil upload dari file Excel.")
 
                 df_raw = read_table(RAW_TABLE)
 
@@ -1504,10 +1382,7 @@ with main_col:
 
         with tab2:
             with st.container(border=True):
-                render_section_title(
-                    "Data Hasil Pengolahan Tersimpan",
-                    "Data PO yang sudah ditambahkan hasil perhitungan dan klasifikasi."
-                )
+                render_section_title("Data Hasil Pengolahan Tersimpan", "Data PO yang sudah ditambahkan hasil perhitungan dan klasifikasi.")
 
                 df_processed = read_table(PROCESSED_TABLE)
 
@@ -1537,10 +1412,7 @@ with main_col:
 
         with tab3:
             with st.container(border=True):
-                render_section_title(
-                    "Download Semua Database",
-                    "Export seluruh data mentah, hasil olahan, dan rekap dashboard."
-                )
+                render_section_title("Download Semua Database", "Export seluruh data mentah, hasil olahan, dan rekap dashboard.")
 
                 df_raw = read_table(RAW_TABLE)
                 df_processed = read_table(PROCESSED_TABLE)

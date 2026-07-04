@@ -449,29 +449,31 @@ st.markdown(
             padding: 18px;
         }
 
-        .chart-dark-title {
-            background: linear-gradient(135deg, #0B2742, #123A5A);
-            border: 1px solid rgba(255,255,255,0.08);
+        .chart-corporate-title {
+            background:
+                linear-gradient(135deg, #FFFFFF, #F3FAFE),
+                radial-gradient(circle at right, rgba(0, 120, 184, 0.12), transparent 40%);
+            border: 1px solid #D8EAF5;
+            border-left: 6px solid #0078B8;
             border-radius: 24px;
             padding: 18px 22px;
-            color: #FFFFFF;
+            color: #092D55;
             margin-bottom: 14px;
-            box-shadow: 0 16px 34px rgba(0, 45, 80, 0.20);
+            box-shadow: 0 14px 30px rgba(0, 72, 135, 0.10);
         }
 
-        .chart-dark-title h3 {
+        .chart-corporate-title h3 {
             margin: 0;
             font-size: 22px;
             font-weight: 900;
-            color: #FFF45A;
+            color: #092D55;
             letter-spacing: 0.3px;
-            text-shadow: 0 0 12px rgba(255,244,90,0.35);
         }
 
-        .chart-dark-title p {
+        .chart-corporate-title p {
             margin: 5px 0 0 0;
             font-size: 13px;
-            color: rgba(255,255,255,0.82);
+            color: #637D96;
         }
 
         .info-box {
@@ -1101,15 +1103,6 @@ def clean_dashboard_numeric(df):
     return df
 
 
-def format_chart_number(value):
-    try:
-        if abs(float(value)) >= 1_000_000:
-            return format_rupiah_ringkas(value).replace("Rp ", "")
-        return format_number(value)
-    except Exception:
-        return str(value)
-
-
 # ==============================
 # KOMPONEN UI
 # ==============================
@@ -1244,10 +1237,10 @@ def render_section_title(title, subtitle):
     )
 
 
-def render_dark_chart_title(title, subtitle):
+def render_corporate_chart_title(title, subtitle):
     st.markdown(
         f"""
-        <div class="chart-dark-title">
+        <div class="chart-corporate-title">
             <h3>{title}</h3>
             <p>{subtitle}</p>
         </div>
@@ -1305,7 +1298,7 @@ def render_footer():
 
 
 # ==============================
-# CHART BAR MEMANJANG
+# CHART BAR CORPORATE
 # ==============================
 
 def make_long_horizontal_bar(
@@ -1314,7 +1307,7 @@ def make_long_horizontal_bar(
     y_col,
     title,
     x_title,
-    bar_color="#FFF45A",
+    bar_color="#0078B8",
     value_mode="number",
 ):
     if df.empty:
@@ -1322,9 +1315,9 @@ def make_long_horizontal_bar(
         fig.update_layout(
             title="Tidak ada data",
             height=360,
-            paper_bgcolor="rgba(9, 35, 58, 0.98)",
-            plot_bgcolor="rgba(9, 35, 58, 0.98)",
-            font=dict(color="#FFFFFF", family="Inter"),
+            paper_bgcolor="#FFFFFF",
+            plot_bgcolor="#FFFFFF",
+            font=dict(color="#092D55", family="Inter"),
         )
         return fig
 
@@ -1353,7 +1346,7 @@ def make_long_horizontal_bar(
             textposition="outside",
             marker=dict(
                 color=bar_color,
-                line=dict(color="#FFF9A8", width=1),
+                line=dict(color="#005B9E", width=1),
             ),
             hovertemplate="<b>%{y}</b><br>Nilai: %{text}<extra></extra>",
         )
@@ -1366,39 +1359,39 @@ def make_long_horizontal_bar(
             xanchor="center",
             font=dict(
                 size=24,
-                color="#FFF45A",
+                color="#092D55",
                 family="Inter",
             ),
         ),
         height=height,
-        margin=dict(l=230, r=110, t=80, b=65),
-        paper_bgcolor="rgba(9, 35, 58, 0.98)",
-        plot_bgcolor="rgba(9, 35, 58, 0.98)",
+        margin=dict(l=240, r=120, t=80, b=65),
+        paper_bgcolor="#FFFFFF",
+        plot_bgcolor="#F7FBFE",
         font=dict(
             family="Inter",
-            color="#FFFFFF",
+            color="#092D55",
             size=12,
         ),
         xaxis=dict(
             title=dict(
                 text=x_title,
-                font=dict(color="#FFF45A", size=12),
+                font=dict(color="#0078B8", size=12),
             ),
-            gridcolor="rgba(255,255,255,0.12)",
+            gridcolor="#DDEAF4",
             zeroline=False,
-            tickfont=dict(color="#FFFFFF"),
+            tickfont=dict(color="#092D55"),
         ),
         yaxis=dict(
             title="",
-            gridcolor="rgba(255,255,255,0.06)",
-            tickfont=dict(color="#FFFFFF", size=12),
+            gridcolor="#EEF5FA",
+            tickfont=dict(color="#092D55", size=12),
         ),
         bargap=0.34,
     )
 
     fig.update_traces(
         textfont=dict(
-            color="#FFFFFF",
+            color="#092D55",
             size=12,
             family="Inter",
         ),
@@ -1414,9 +1407,9 @@ def make_efficiency_comparison_bar(df):
         fig.update_layout(
             title="Tidak ada data",
             height=420,
-            paper_bgcolor="rgba(9, 35, 58, 0.98)",
-            plot_bgcolor="rgba(9, 35, 58, 0.98)",
-            font=dict(color="#FFFFFF", family="Inter"),
+            paper_bgcolor="#FFFFFF",
+            plot_bgcolor="#FFFFFF",
+            font=dict(color="#092D55", family="Inter"),
         )
         return fig
 
@@ -1438,7 +1431,7 @@ def make_efficiency_comparison_bar(df):
             x=data["Total_Valuation_Price"],
             name="HPS/OE",
             orientation="h",
-            marker=dict(color="#FFF4DB"),
+            marker=dict(color="#B9D9EF"),
             text=[format_rupiah_ringkas(v).replace("Rp ", "") for v in data["Total_Valuation_Price"]],
             textposition="outside",
             hovertemplate="<b>%{y}</b><br>HPS/OE: %{text}<extra></extra>",
@@ -1451,7 +1444,7 @@ def make_efficiency_comparison_bar(df):
             x=data["Total_Net_Order_Value"],
             name="PO",
             orientation="h",
-            marker=dict(color="#B8D8FF"),
+            marker=dict(color="#0078B8"),
             text=[format_rupiah_ringkas(v).replace("Rp ", "") for v in data["Total_Net_Order_Value"]],
             textposition="outside",
             hovertemplate="<b>%{y}</b><br>PO: %{text}<extra></extra>",
@@ -1464,7 +1457,7 @@ def make_efficiency_comparison_bar(df):
             x=data["Total_Efisiensi"],
             name="Efisiensi",
             orientation="h",
-            marker=dict(color="#FFF45A"),
+            marker=dict(color="#16A7A0"),
             text=[format_rupiah_ringkas(v).replace("Rp ", "") for v in data["Total_Efisiensi"]],
             textposition="outside",
             hovertemplate="<b>%{y}</b><br>Efisiensi: %{text}<extra></extra>",
@@ -1478,18 +1471,18 @@ def make_efficiency_comparison_bar(df):
             xanchor="center",
             font=dict(
                 size=26,
-                color="#FFF45A",
+                color="#092D55",
                 family="Inter",
             ),
         ),
         barmode="group",
         height=height,
-        margin=dict(l=240, r=125, t=85, b=70),
-        paper_bgcolor="rgba(9, 35, 58, 0.98)",
-        plot_bgcolor="rgba(9, 35, 58, 0.98)",
+        margin=dict(l=250, r=135, t=85, b=70),
+        paper_bgcolor="#FFFFFF",
+        plot_bgcolor="#F7FBFE",
         font=dict(
             family="Inter",
-            color="#FFFFFF",
+            color="#092D55",
             size=12,
         ),
         legend=dict(
@@ -1498,23 +1491,23 @@ def make_efficiency_comparison_bar(df):
             y=1.02,
             xanchor="center",
             x=0.5,
-            font=dict(color="#FFFFFF"),
-            bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#092D55"),
+            bgcolor="rgba(255,255,255,0)",
         ),
         xaxis=dict(
             title=dict(
                 text="Nilai Rupiah",
-                font=dict(color="#FFF45A", size=12),
+                font=dict(color="#0078B8", size=12),
             ),
-            gridcolor="rgba(255,255,255,0.12)",
+            gridcolor="#DDEAF4",
             zeroline=True,
-            zerolinecolor="rgba(255,255,255,0.35)",
-            tickfont=dict(color="#FFFFFF"),
+            zerolinecolor="#B9D9EF",
+            tickfont=dict(color="#092D55"),
         ),
         yaxis=dict(
             title="",
-            gridcolor="rgba(255,255,255,0.06)",
-            tickfont=dict(color="#FFFFFF", size=12),
+            gridcolor="#EEF5FA",
+            tickfont=dict(color="#092D55", size=12),
         ),
         bargap=0.22,
         bargroupgap=0.08,
@@ -1522,7 +1515,7 @@ def make_efficiency_comparison_bar(df):
 
     fig.update_traces(
         textfont=dict(
-            color="#FFFFFF",
+            color="#092D55",
             size=11,
             family="Inter",
         ),
@@ -1644,7 +1637,7 @@ with main_col:
 
                 st.write("")
 
-                render_dark_chart_title(
+                render_corporate_chart_title(
                     "PAKET PURCHASE ORDER (PO)",
                     "Visualisasi jumlah dokumen paket PO berdasarkan status final pengadaan."
                 )
@@ -1655,14 +1648,14 @@ with main_col:
                     y_col="Status Final",
                     title="PAKET PURCHASE ORDER (PO)",
                     x_title="Jumlah Dokumen Paket PO",
-                    bar_color="#FFF45A",
+                    bar_color="#0078B8",
                     value_mode="number"
                 )
                 st.plotly_chart(fig_paket, use_container_width=True)
 
                 st.write("")
 
-                render_dark_chart_title(
+                render_corporate_chart_title(
                     "EFISIENSI",
                     "Perbandingan nilai HPS/OE, nilai PO, dan total efisiensi berdasarkan status final."
                 )
@@ -1672,7 +1665,7 @@ with main_col:
 
                 st.write("")
 
-                render_dark_chart_title(
+                render_corporate_chart_title(
                     "LAMA PROSES PURCHASE ORDER (PO)",
                     "Visualisasi rata-rata lama proses PO per hari berdasarkan status final pengadaan."
                 )
@@ -1683,7 +1676,7 @@ with main_col:
                     y_col="Status Final",
                     title="LAMA PROSES PURCHASE ORDER (PO)",
                     x_title="Rata-Rata Lama Proses PO Per Hari",
-                    bar_color="#FFF45A",
+                    bar_color="#16A7A0",
                     value_mode="day"
                 )
                 st.plotly_chart(fig_lama, use_container_width=True)

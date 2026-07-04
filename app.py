@@ -3,6 +3,7 @@ import base64
 import sqlite3
 from datetime import datetime
 from io import BytesIO
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -22,6 +23,8 @@ UPLOAD_TABLE = "uploaded_files"
 
 PO_SHEET_NAME = "PO April 2026"
 KK_SHEET_NAME = "KK Pemaketan"
+
+TIMEZONE = ZoneInfo("Asia/Jakarta")
 
 REQUIRED_COLUMNS = [
     "Purchasing Document",
@@ -607,6 +610,22 @@ st.markdown(
 
 
 # ==============================
+# FUNGSI WAKTU WIB
+# ==============================
+
+def get_now_wib():
+    return datetime.now(TIMEZONE)
+
+
+def get_now_wib_str():
+    return get_now_wib().strftime("%Y-%m-%d %H:%M:%S WIB")
+
+
+def get_now_wib_display():
+    return get_now_wib().strftime("%d %b %Y %H:%M WIB")
+
+
+# ==============================
 # FUNGSI UMUM
 # ==============================
 
@@ -731,7 +750,7 @@ def save_upload_history(file_name, total_rows, periode_data, periode_label, stat
         """,
         (
             file_name,
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            get_now_wib_str(),
             int(total_rows),
             status,
             periode_data,
@@ -832,7 +851,7 @@ def prepare_month_metadata(df, month_key, month_label, uploaded_file_name):
     df["Periode Data"] = month_key
     df["Periode Label"] = month_label
     df["Nama File Upload"] = uploaded_file_name
-    df["Tanggal Upload"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    df["Tanggal Upload"] = get_now_wib_str()
     return df
 
 
@@ -1174,7 +1193,7 @@ def render_custom_sidebar():
 
 
 def render_header(title, subtitle):
-    today = datetime.now().strftime("%d %b %Y %H:%M")
+    today = get_now_wib_display()
 
     st.markdown(
         f"""
@@ -1720,13 +1739,14 @@ with main_col:
 
             periode_tanggal = st.date_input(
                 "Pilih Bulan Data",
-                value=datetime.now().date()
+                value=get_now_wib().date()
             )
 
             periode_data = get_month_key_from_date(periode_tanggal)
             periode_label = get_month_label(periode_data)
 
             st.info(f"Periode data yang dipilih: {periode_label}")
+            st.caption(f"Waktu sistem saat ini: {get_now_wib_str()}")
 
         with st.container(border=True):
             render_section_title("Upload File Excel", "Gunakan file Excel dengan format .xlsx atau .xlsm.")
@@ -1792,7 +1812,7 @@ with main_col:
                         )
 
                         render_success(
-                            f"Data berhasil diproses dan disimpan ke database untuk periode <b>{periode_label}</b>."
+                            f"Data berhasil diproses dan disimpan ke database untuk periode <b>{periode_label}</b> pada waktu <b>{get_now_wib_str()}</b>."
                         )
 
                         with st.container(border=True):
@@ -1850,7 +1870,7 @@ with main_col:
                 """
                 Data berikut merupakan hasil pengolahan dari file Excel yang sudah di-upload.
                 Kolom tambahan mencakup Total Valuation Price, PIR, Status Final, PRJ,
-                Efisiensi, Prosentase, Lama Proses PO, dan Periode Data.
+                Efisiensi, Prosentase, Lama Proses PO, Periode Data, dan Tanggal Upload WIB.
                 """
             )
 

@@ -666,6 +666,61 @@ def get_month_key_from_date(date_value):
     return date_value.strftime("%Y-%m")
 
 
+def drop_empty_uploaded_rows(df):
+    """
+    Menghapus baris kosong dari Excel.
+    Baris dianggap kosong jika:
+    1. semua kolom penting kosong, atau
+    2. Purchasing Document kosong.
+    """
+    if df is None or df.empty:
+        return pd.DataFrame() if df is None else df
+
+    df = df.copy()
+
+    df = df.replace(r"^\s*$", pd.NA, regex=True)
+    df = df.replace(["nan", "NaN", "None", "NONE", "NaT", "<NA>"], pd.NA)
+
+    check_cols = [col for col in REQUIRED_COLUMNS if col in df.columns]
+
+    if check_cols:
+        df = df.dropna(how="all", subset=check_cols)
+    else:
+        df = df.dropna(how="all")
+
+    if "Purchasing Document" in df.columns:
+        key = df["Purchasing Document"].astype(str).str.strip()
+        invalid_key = (
+            key.eq("")
+            | key.str.lower().isin(["nan", "none", "nat", "<na>"])
+        )
+        df = df[~invalid_key]
+
+    df = df.reset_index(drop=True)
+
+    return df
+
+
+def drop_empty_kk_rows(df):
+    if df is None or df.empty:
+        return pd.DataFrame() if df is None else df
+
+    df = df.copy()
+    df = df.replace(r"^\s*$", pd.NA, regex=True)
+    df = df.dropna(how="all")
+
+    if "Purchase Order" in df.columns:
+        key = df["Purchase Order"].astype(str).str.strip()
+        invalid_key = (
+            key.eq("")
+            | key.str.lower().isin(["nan", "none", "nat", "<na>"])
+        )
+        df = df[~invalid_key]
+
+    df = df.reset_index(drop=True)
+    return df
+
+
 # ==============================
 # DATABASE
 # ==============================
@@ -783,6 +838,10 @@ def read_table(table_name):
         df = pd.DataFrame()
 
     conn.close()
+
+    if table_name in [RAW_TABLE, PROCESSED_TABLE]:
+        df = drop_empty_uploaded_rows(df)
+
     return df
 
 
@@ -883,6 +942,7 @@ def contains_text(series, keyword):
 
 def process_po_data(df_po, df_kk=None):
     df = df_po.copy()
+    df = drop_empty_uploaded_rows(df)
     df = clean_numeric_columns(df)
 
     df["Total Valuation Price"] = df["Valuation Price"] * df["Order Quantity"]
@@ -956,6 +1016,8 @@ def process_po_data(df_po, df_kk=None):
     )
 
     if df_kk is not None and not df_kk.empty:
+        df_kk = drop_empty_kk_rows(df_kk)
+
         if "Purchase Order" in df_kk.columns and "Lama Proses PO" in df_kk.columns:
             kk_lookup = df_kk[["Purchase Order", "Lama Proses PO"]].copy()
 
@@ -995,6 +1057,8 @@ def process_po_data(df_po, df_kk=None):
     else:
         df["Lama Proses PO"] = 0
 
+    df = drop_empty_uploaded_rows(df)
+
     return df
 
 
@@ -1011,6 +1075,9 @@ def read_excel_file(uploaded_file):
     else:
         df_kk = pd.DataFrame()
 
+    df_po = drop_empty_uploaded_rows(df_po)
+    df_kk = drop_empty_kk_rows(df_kk)
+
     return df_po, df_kk, xls.sheet_names
 
 
@@ -1019,6 +1086,8 @@ def read_excel_file(uploaded_file):
 # ==============================
 
 def make_rekap(df):
+    df = drop_empty_uploaded_rows(df)
+
     if df.empty:
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
@@ -1058,6 +1127,8 @@ def dataframe_to_excel_bytes(sheets: dict):
 
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         for sheet_name, df in sheets.items():
+            if sheet_name in ["Data Mentah", "Hasil Pengolahan"]:
+                df = drop_empty_uploaded_rows(df)
             df.to_excel(writer, sheet_name=sheet_name[:31], index=False)
 
     output.seek(0)
@@ -1107,6 +1178,8 @@ def format_number(value):
 
 
 def clean_dashboard_numeric(df):
+    df = drop_empty_uploaded_rows(df)
+
     numeric_cols = [
         "Net Order Value",
         "Total Valuation Price",
@@ -1574,7 +1647,7 @@ with main_col:
             col1, col2, col3, col4, col5 = st.columns(5)
 
             with col1:
-                render_metric_card("Jumlah Data", "0", "Total baris data", "🗄️")
+                render_metric_card("Jumlah Data", "0", "Total baris data aktif", "🗄️")
 
             with col2:
                 render_metric_card("Total Paket PO", "0", "Jumlah paket PO unik", "📦")
@@ -1623,6 +1696,7 @@ with main_col:
 
                 selected_month = month_options[month_labels.index(selected_month_label)]
                 df = filter_df_by_month(df, selected_month)
+                df = drop_empty_uploaded_rows(df)
 
             total_po = df["Purchasing Document"].nunique() if not df.empty else 0
             total_rows = len(df)
@@ -1633,7 +1707,7 @@ with main_col:
             col1, col2, col3, col4, col5 = st.columns(5)
 
             with col1:
-                render_metric_card("Jumlah Data", format_number(total_rows), "Total baris data", "🗄️")
+                render_metric_card("Jumlah Data", format_number(total_rows), "Total baris data aktif", "🗄️")
 
             with col2:
                 render_metric_card("Total Paket PO", format_number(total_po), "Jumlah Purchasing Document unik", "📦")
@@ -1729,8 +1803,8 @@ with main_col:
 
         render_info(
             """
-            Pilih bulan data terlebih dahulu sebelum upload. Data akan disimpan berdasarkan periode bulan tersebut,
-            sehingga nanti bisa diunduh atau dihapus per bulan.
+            Pilih bulan data terlebih dahulu sebelum upload. Sistem akan menghapus baris kosong secara otomatis,
+            sehingga baris kosong dari Excel tidak ikut masuk ke database dan tidak ikut dihitung di dashboard.
             """
         )
 
@@ -1760,9 +1834,13 @@ with main_col:
             try:
                 df_po, df_kk, sheet_names = read_excel_file(uploaded_file)
 
+                total_setelah_bersih = len(df_po)
+
                 render_success(
                     f"File <b>{uploaded_file.name}</b> berhasil dibaca. Sheet yang ditemukan: <b>{', '.join(sheet_names)}</b>."
                 )
+
+                st.info(f"Jumlah baris data valid yang terbaca: {format_number(total_setelah_bersih)} baris.")
 
                 missing_columns = validate_columns(df_po)
 
@@ -1773,9 +1851,12 @@ with main_col:
                         render_section_title("Kolom yang Belum Ditemukan", "Pastikan nama kolom pada Excel sama persis.")
                         st.write(missing_columns)
 
+                elif df_po.empty:
+                    render_warning("File berhasil dibaca, tetapi tidak ada baris data valid. Pastikan kolom Purchasing Document terisi.")
+
                 else:
                     with st.container(border=True):
-                        render_section_title("Preview Data Input", "Berikut 20 baris awal dari sheet PO yang akan diproses.")
+                        render_section_title("Preview Data Input", "Berikut 20 baris awal dari data valid yang akan diproses.")
                         st.dataframe(df_po.head(20), use_container_width=True)
 
                     replace_month_data = st.checkbox(
@@ -1787,6 +1868,7 @@ with main_col:
                             delete_data_by_month(periode_data)
 
                         df_processed = process_po_data(df_po, df_kk)
+                        df_processed = drop_empty_uploaded_rows(df_processed)
 
                         df_po_save = prepare_month_metadata(
                             df_po,
@@ -1802,6 +1884,9 @@ with main_col:
                             uploaded_file.name
                         )
 
+                        df_po_save = drop_empty_uploaded_rows(df_po_save)
+                        df_processed_save = drop_empty_uploaded_rows(df_processed_save)
+
                         save_dataframe_to_db(df_po_save, df_processed_save, mode="append")
 
                         save_upload_history(
@@ -1812,7 +1897,8 @@ with main_col:
                         )
 
                         render_success(
-                            f"Data berhasil diproses dan disimpan ke database untuk periode <b>{periode_label}</b> pada waktu <b>{get_now_wib_str()}</b>."
+                            f"Data berhasil diproses dan disimpan ke database untuk periode <b>{periode_label}</b>. "
+                            f"Jumlah baris data valid yang tersimpan: <b>{format_number(len(df_processed_save))}</b> baris."
                         )
 
                         with st.container(border=True):
@@ -1865,17 +1951,17 @@ with main_col:
 
                 selected_month = month_options[month_labels.index(selected_month_label)]
                 df = filter_df_by_month(df, selected_month)
+                df = drop_empty_uploaded_rows(df)
 
             render_info(
                 """
                 Data berikut merupakan hasil pengolahan dari file Excel yang sudah di-upload.
-                Kolom tambahan mencakup Total Valuation Price, PIR, Status Final, PRJ,
-                Efisiensi, Prosentase, Lama Proses PO, Periode Data, dan Tanggal Upload WIB.
+                Baris kosong tidak ditampilkan dan tidak ikut dihitung.
                 """
             )
 
             with st.container(border=True):
-                render_section_title("Tabel Hasil Pengolahan", "Data sudah diproses berdasarkan rumus dan aturan klasifikasi.")
+                render_section_title("Tabel Hasil Pengolahan", f"Jumlah baris data valid: {format_number(len(df))} baris.")
                 st.dataframe(df, use_container_width=True)
 
             excel_bytes = dataframe_to_excel_bytes(
@@ -1922,6 +2008,9 @@ with main_col:
                 df_raw_month = filter_df_by_month(df_raw_all, selected_month)
                 df_processed_month = filter_df_by_month(df_processed_all, selected_month)
 
+                df_raw_month = drop_empty_uploaded_rows(df_raw_month)
+                df_processed_month = drop_empty_uploaded_rows(df_processed_month)
+
                 paket_po, efisiensi, lama_proses = make_rekap(df_processed_month)
 
                 col_a, col_b, col_c = st.columns(3)
@@ -1938,7 +2027,7 @@ with main_col:
                     render_metric_card(
                         "Jumlah Data",
                         format_number(len(df_processed_month)),
-                        "Total data pada bulan ini",
+                        "Total baris data aktif",
                         "🗄️"
                     )
 
@@ -2014,6 +2103,7 @@ with main_col:
                 render_section_title("Data Mentah Tersimpan", "Data asli hasil upload dari file Excel.")
 
                 df_raw = read_table(RAW_TABLE)
+                df_raw = drop_empty_uploaded_rows(df_raw)
 
                 if df_raw.empty:
                     st.info("Belum ada data mentah tersimpan.")
@@ -2038,6 +2128,7 @@ with main_col:
                 render_section_title("Data Hasil Pengolahan Tersimpan", "Data PO yang sudah ditambahkan hasil perhitungan dan klasifikasi.")
 
                 df_processed = read_table(PROCESSED_TABLE)
+                df_processed = drop_empty_uploaded_rows(df_processed)
 
                 if df_processed.empty:
                     st.info("Belum ada data hasil pengolahan tersimpan.")
@@ -2069,6 +2160,9 @@ with main_col:
 
                 df_raw = read_table(RAW_TABLE)
                 df_processed = read_table(PROCESSED_TABLE)
+
+                df_raw = drop_empty_uploaded_rows(df_raw)
+                df_processed = drop_empty_uploaded_rows(df_processed)
 
                 if df_processed.empty:
                     st.info("Belum ada database yang bisa diunduh.")

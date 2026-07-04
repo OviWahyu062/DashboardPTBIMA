@@ -1552,7 +1552,7 @@ with main_col:
                 "Belum ada data yang tersimpan. Silakan upload file Excel terlebih dahulu melalui menu <b>Entry Data Excel</b>."
             )
 
-            col1, col2, col3, col4, col5 = st.columns(3)
+            col1, col2, col3, col4, col5 = st.columns(5)
 
             with col1:
                 render_metric_card("Jumlah Data", "0", "Total baris data", "🗄️")

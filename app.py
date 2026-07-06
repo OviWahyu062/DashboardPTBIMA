@@ -1,5 +1,6 @@
 import os
 import base64
+import sqlite3
 from datetime import datetime
 from io import BytesIO
 from zoneinfo import ZoneInfo
@@ -8,14 +9,12 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from sqlalchemy import create_engine, text, inspect
-
 
 # ==============================
 # KONFIGURASI DASAR
 # ==============================
 
-LOCAL_SQLITE_PATH = "po_database.db"
+DB_PATH = "po_database.db"
 LOGO_PATH = "logo_pelindo.png"
 
 RAW_TABLE = "po_raw"
@@ -76,85 +75,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
-
-
-# ==============================
-# DATABASE PERSISTEN
-# ==============================
-
-def get_secret_value(key, default=None):
-    try:
-        return st.secrets[key]
-    except Exception:
-        return os.environ.get(key, default)
-
-
-def get_database_url():
-    database_url = get_secret_value("DATABASE_URL")
-
-    if database_url:
-        database_url = str(database_url).strip()
-
-        if database_url.startswith("postgres://"):
-            database_url = database_url.replace("postgres://", "postgresql://", 1)
-
-        return database_url
-
-    return f"sqlite:///{LOCAL_SQLITE_PATH}"
-
-
-DATABASE_URL = get_database_url()
-IS_EXTERNAL_DATABASE = DATABASE_URL.startswith("postgresql")
-
-
-def validate_database_url(database_url):
-    if database_url.startswith("sqlite"):
-        return True
-
-    if "username" in database_url or "password" in database_url or "host" in database_url or ":port" in database_url:
-        st.error(
-            "DATABASE_URL masih berisi contoh/placeholder. "
-            "Ganti username, password, host, port, dan database dengan data asli dari Supabase."
-        )
-        st.stop()
-
-    return True
-
-
-@st.cache_resource
-def get_engine():
-    validate_database_url(DATABASE_URL)
-
-    try:
-        if DATABASE_URL.startswith("postgresql"):
-            return create_engine(
-                DATABASE_URL,
-                pool_pre_ping=True,
-                connect_args={"sslmode": "require"},
-            )
-
-        return create_engine(
-            DATABASE_URL,
-            connect_args={"check_same_thread": False},
-        )
-
-    except ValueError:
-        st.error(
-            "Format DATABASE_URL salah. Pastikan port berupa angka, contoh ':5432', "
-            "bukan ':port'. Contoh benar: "
-            "postgresql://postgres:password@db.xxxxx.supabase.co:5432/postgres"
-        )
-        st.stop()
-
-    except Exception as e:
-        st.error(
-            "Koneksi database gagal. Periksa lagi DATABASE_URL di Streamlit Secrets."
-        )
-        st.exception(e)
-        st.stop()
-
-
-engine = get_engine()
 
 
 # ==============================
@@ -747,10 +667,17 @@ def get_month_key_from_date(date_value):
 
 
 def drop_empty_uploaded_rows(df):
+    """
+    Menghapus baris kosong dari Excel.
+    Baris dianggap kosong jika:
+    1. semua kolom penting kosong, atau
+    2. Purchasing Document kosong.
+    """
     if df is None or df.empty:
         return pd.DataFrame() if df is None else df
 
     df = df.copy()
+
     df = df.replace(r"^\s*$", pd.NA, regex=True)
     df = df.replace(["nan", "NaN", "None", "NONE", "NaT", "<NA>"], pd.NA)
 
@@ -770,6 +697,7 @@ def drop_empty_uploaded_rows(df):
         df = df[~invalid_key]
 
     df = df.reset_index(drop=True)
+
     return df
 
 
@@ -793,162 +721,123 @@ def drop_empty_kk_rows(df):
     return df
 
 
-def safe_table_name(table_name):
-    return table_name.replace('"', '""')
-
-
-def safe_column_name(column_name):
-    return column_name.replace('"', '""')
-
-
-def get_inspector():
-    return inspect(engine)
-
-
-def table_exists(table_name):
-    inspector = get_inspector()
-    return inspector.has_table(table_name)
-
-
-def get_table_columns(table_name):
-    if not table_exists(table_name):
-        return []
-
-    inspector = get_inspector()
-    columns = inspector.get_columns(table_name)
-    return [col["name"] for col in columns]
-
-
-def ensure_columns(table_name, df):
-    if df is None or df.empty:
-        return
-
-    if not table_exists(table_name):
-        return
-
-    existing_columns = get_table_columns(table_name)
-
-    with engine.begin() as conn:
-        for col in df.columns:
-            if col not in existing_columns:
-                conn.execute(
-                    text(
-                        f'ALTER TABLE "{safe_table_name(table_name)}" '
-                        f'ADD COLUMN "{safe_column_name(col)}" TEXT'
-                    )
-                )
-
-
 # ==============================
 # DATABASE
 # ==============================
 
+def get_connection():
+    return sqlite3.connect(DB_PATH, check_same_thread=False)
+
+
+def table_exists(conn, table_name):
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        (table_name,)
+    )
+    return cursor.fetchone() is not None
+
+
+def get_table_columns(conn, table_name):
+    if not table_exists(conn, table_name):
+        return []
+
+    cursor = conn.cursor()
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    rows = cursor.fetchall()
+    return [row[1] for row in rows]
+
+
+def ensure_columns(conn, table_name, df):
+    if not table_exists(conn, table_name):
+        return
+
+    existing_columns = get_table_columns(conn, table_name)
+    cursor = conn.cursor()
+
+    for col in df.columns:
+        if col not in existing_columns:
+            safe_col = col.replace('"', '""')
+            cursor.execute(f'ALTER TABLE {table_name} ADD COLUMN "{safe_col}" TEXT')
+
+    conn.commit()
+
+
 def init_database():
-    with engine.begin() as conn:
-        if IS_EXTERNAL_DATABASE:
-            conn.execute(
-                text(
-                    f"""
-                    CREATE TABLE IF NOT EXISTS "{UPLOAD_TABLE}" (
-                        id SERIAL PRIMARY KEY,
-                        file_name TEXT,
-                        upload_date TEXT,
-                        total_rows INTEGER,
-                        status TEXT,
-                        periode_data TEXT,
-                        periode_label TEXT
-                    )
-                    """
-                )
-            )
-        else:
-            conn.execute(
-                text(
-                    f"""
-                    CREATE TABLE IF NOT EXISTS "{UPLOAD_TABLE}" (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        file_name TEXT,
-                        upload_date TEXT,
-                        total_rows INTEGER,
-                        status TEXT,
-                        periode_data TEXT,
-                        periode_label TEXT
-                    )
-                    """
-                )
-            )
+    conn = get_connection()
+    cursor = conn.cursor()
 
-    upload_columns = get_table_columns(UPLOAD_TABLE)
-
-    with engine.begin() as conn:
-        if "periode_data" not in upload_columns:
-            conn.execute(text(f'ALTER TABLE "{UPLOAD_TABLE}" ADD COLUMN periode_data TEXT'))
-
-        if "periode_label" not in upload_columns:
-            conn.execute(text(f'ALTER TABLE "{UPLOAD_TABLE}" ADD COLUMN periode_label TEXT'))
-
-
-def save_upload_history(file_name, total_rows, periode_data, periode_label, status="Berhasil diproses"):
-    query = text(
+    cursor.execute(
         f"""
-        INSERT INTO "{UPLOAD_TABLE}"
-        (file_name, upload_date, total_rows, status, periode_data, periode_label)
-        VALUES
-        (:file_name, :upload_date, :total_rows, :status, :periode_data, :periode_label)
+        CREATE TABLE IF NOT EXISTS {UPLOAD_TABLE} (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_name TEXT,
+            upload_date TEXT,
+            total_rows INTEGER,
+            status TEXT,
+            periode_data TEXT,
+            periode_label TEXT
+        )
         """
     )
 
-    with engine.begin() as conn:
-        conn.execute(
-            query,
-            {
-                "file_name": file_name,
-                "upload_date": get_now_wib_str(),
-                "total_rows": int(total_rows),
-                "status": status,
-                "periode_data": periode_data,
-                "periode_label": periode_label,
-            },
-        )
+    upload_columns = get_table_columns(conn, UPLOAD_TABLE)
+
+    if "periode_data" not in upload_columns:
+        cursor.execute(f"ALTER TABLE {UPLOAD_TABLE} ADD COLUMN periode_data TEXT")
+
+    if "periode_label" not in upload_columns:
+        cursor.execute(f"ALTER TABLE {UPLOAD_TABLE} ADD COLUMN periode_label TEXT")
+
+    conn.commit()
+    conn.close()
+
+
+def save_upload_history(file_name, total_rows, periode_data, periode_label, status="Berhasil diproses"):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        f"""
+        INSERT INTO {UPLOAD_TABLE}
+        (file_name, upload_date, total_rows, status, periode_data, periode_label)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            file_name,
+            get_now_wib_str(),
+            int(total_rows),
+            status,
+            periode_data,
+            periode_label,
+        ),
+    )
+
+    conn.commit()
+    conn.close()
 
 
 def save_dataframe_to_db(df_raw, df_processed, mode="append"):
-    df_raw = drop_empty_uploaded_rows(df_raw)
-    df_processed = drop_empty_uploaded_rows(df_processed)
+    conn = get_connection()
 
-    ensure_columns(RAW_TABLE, df_raw)
-    ensure_columns(PROCESSED_TABLE, df_processed)
+    ensure_columns(conn, RAW_TABLE, df_raw)
+    ensure_columns(conn, PROCESSED_TABLE, df_processed)
 
-    df_raw.to_sql(
-        RAW_TABLE,
-        engine,
-        if_exists=mode,
-        index=False,
-        method="multi",
-        chunksize=1000,
-    )
+    df_raw.to_sql(RAW_TABLE, conn, if_exists=mode, index=False)
+    df_processed.to_sql(PROCESSED_TABLE, conn, if_exists=mode, index=False)
 
-    df_processed.to_sql(
-        PROCESSED_TABLE,
-        engine,
-        if_exists=mode,
-        index=False,
-        method="multi",
-        chunksize=1000,
-    )
+    conn.close()
 
 
 def read_table(table_name):
-    if not table_exists(table_name):
-        return pd.DataFrame()
+    conn = get_connection()
 
     try:
-        df = pd.read_sql_query(
-            text(f'SELECT * FROM "{safe_table_name(table_name)}"'),
-            engine,
-        )
+        df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
     except Exception:
         df = pd.DataFrame()
+
+    conn.close()
 
     if table_name in [RAW_TABLE, PROCESSED_TABLE]:
         df = drop_empty_uploaded_rows(df)
@@ -977,31 +866,30 @@ def get_available_months():
 
 
 def delete_data_by_month(month_key):
-    with engine.begin() as conn:
-        for table_name in [RAW_TABLE, PROCESSED_TABLE]:
-            if table_exists(table_name):
-                columns = get_table_columns(table_name)
+    conn = get_connection()
+    cursor = conn.cursor()
 
-                if "Periode Data" in columns:
-                    conn.execute(
-                        text(
-                            f'DELETE FROM "{safe_table_name(table_name)}" '
-                            f'WHERE "Periode Data" = :month_key'
-                        ),
-                        {"month_key": month_key},
-                    )
+    for table_name in [RAW_TABLE, PROCESSED_TABLE]:
+        if table_exists(conn, table_name):
+            columns = get_table_columns(conn, table_name)
 
-        if table_exists(UPLOAD_TABLE):
-            upload_columns = get_table_columns(UPLOAD_TABLE)
-
-            if "periode_data" in upload_columns:
-                conn.execute(
-                    text(
-                        f'DELETE FROM "{UPLOAD_TABLE}" '
-                        f'WHERE periode_data = :month_key'
-                    ),
-                    {"month_key": month_key},
+            if "Periode Data" in columns:
+                cursor.execute(
+                    f'DELETE FROM {table_name} WHERE "Periode Data" = ?',
+                    (month_key,)
                 )
+
+    if table_exists(conn, UPLOAD_TABLE):
+        upload_columns = get_table_columns(conn, UPLOAD_TABLE)
+
+        if "periode_data" in upload_columns:
+            cursor.execute(
+                f"DELETE FROM {UPLOAD_TABLE} WHERE periode_data = ?",
+                (month_key,)
+            )
+
+    conn.commit()
+    conn.close()
 
 
 def filter_df_by_month(df, month_key):
@@ -1048,7 +936,7 @@ def contains_text(series, keyword):
         keyword,
         case=False,
         na=False,
-        regex=False,
+        regex=False
     )
 
 
@@ -1062,9 +950,22 @@ def process_po_data(df_po, df_kk=None):
     header = df["Header Text PO"].fillna("").astype(str)
 
     df["PIR"] = contains_text(header, "PIR")
-    df["PENGADAAN LANGSUNG PENYELENGGARA"] = contains_text(header, "PENGADAAN LANGSUNG PENYELENGGARA")
-    df["PENGADAAN LANGSUNG NON PENYELENGGARA"] = contains_text(header, "PENGADAAN LANGSUNG NON PENYELENGGARA")
-    df["PENUNJUKAN LANGSUNG"] = contains_text(header, "PENUNJUKAN LANGSUNG")
+
+    df["PENGADAAN LANGSUNG PENYELENGGARA"] = contains_text(
+        header,
+        "PENGADAAN LANGSUNG PENYELENGGARA"
+    )
+
+    df["PENGADAAN LANGSUNG NON PENYELENGGARA"] = contains_text(
+        header,
+        "PENGADAAN LANGSUNG NON PENYELENGGARA"
+    )
+
+    df["PENUNJUKAN LANGSUNG"] = contains_text(
+        header,
+        "PENUNJUKAN LANGSUNG"
+    )
+
     df["tender"] = contains_text(header, "tender")
 
     def get_status_final(row):
@@ -1144,12 +1045,12 @@ def process_po_data(df_po, df_kk=None):
 
             df["Lama Proses PO"] = pd.to_numeric(
                 df["Lama Proses PO"],
-                errors="coerce",
+                errors="coerce"
             ).fillna(0)
 
             df = df.drop(
                 columns=["_po_key", "Purchase Order"],
-                errors="ignore",
+                errors="ignore"
             )
         else:
             df["Lama Proses PO"] = 0
@@ -1157,6 +1058,7 @@ def process_po_data(df_po, df_kk=None):
         df["Lama Proses PO"] = 0
 
     df = drop_empty_uploaded_rows(df)
+
     return df
 
 
@@ -1349,7 +1251,7 @@ def render_custom_sidebar():
             <div class="sidebar-info-title">Procurement Dashboard</div>
             <div class="sidebar-info-text">
                 Sistem pengolahan data Purchase Order berbasis Excel,
-                database persisten, dan visualisasi dashboard internal.
+                SQLite, dan visualisasi dashboard internal.
             </div>
             <div class="sidebar-user">
                 <div class="sidebar-user-main">👤 Procurement Team</div>
@@ -1366,8 +1268,6 @@ def render_custom_sidebar():
 def render_header(title, subtitle):
     today = get_now_wib_display()
 
-    db_label = "Database Persisten" if IS_EXTERNAL_DATABASE else "SQLite Lokal"
-
     st.markdown(
         f"""
         <div class="page-header">
@@ -1377,7 +1277,6 @@ def render_header(title, subtitle):
             </div>
             <div class="header-actions">
                 <div class="header-badge">📅 {today}</div>
-                <div class="header-badge">🗄️ {db_label}</div>
                 <div class="header-badge">⚓ Pelindo Jasa Maritim - BIMA</div>
             </div>
         </div>
@@ -1393,7 +1292,7 @@ def render_hero():
             <div class="hero-title">Dashboard Monitoring Pengadaan</div>
             <div class="hero-text">
                 Sistem ini digunakan untuk mengunggah data Purchase Order dari Excel,
-                mengolah data secara otomatis, menyimpan hasilnya ke database,
+                mengolah data secara otomatis, menyimpan hasilnya ke database SQLite,
                 serta menampilkan ringkasan Paket PO, Efisiensi, dan Lama Proses PO.
             </div>
         </div>
@@ -1443,19 +1342,39 @@ def render_corporate_chart_title(title, subtitle):
 
 
 def render_info(text):
-    st.markdown(f"""<div class="info-box">{text}</div>""", unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="info-box">{text}</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_success(text):
-    st.markdown(f"""<div class="success-box">{text}</div>""", unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="success-box">{text}</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_warning(text):
-    st.markdown(f"""<div class="warning-box">{text}</div>""", unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="warning-box">{text}</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_danger(text):
-    st.markdown(f"""<div class="danger-box">{text}</div>""", unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="danger-box">{text}</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_footer():
@@ -1463,7 +1382,7 @@ def render_footer():
         """
         <div class="footer-main">
             <div><strong>Sistem Pengelolaan Data Pengadaan</strong> • Pelindo Jasa Maritim - BIMA</div>
-            <div>Streamlit • Pandas • Database Persisten</div>
+            <div>Streamlit • Pandas • SQLite</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -1530,15 +1449,26 @@ def make_long_horizontal_bar(
             text=title,
             x=0.5,
             xanchor="center",
-            font=dict(size=24, color="#092D55", family="Inter"),
+            font=dict(
+                size=24,
+                color="#092D55",
+                family="Inter",
+            ),
         ),
         height=height,
         margin=dict(l=240, r=120, t=80, b=65),
         paper_bgcolor="#FFFFFF",
         plot_bgcolor="#F7FBFE",
-        font=dict(family="Inter", color="#092D55", size=12),
+        font=dict(
+            family="Inter",
+            color="#092D55",
+            size=12,
+        ),
         xaxis=dict(
-            title=dict(text=x_title, font=dict(color="#0078B8", size=12)),
+            title=dict(
+                text=x_title,
+                font=dict(color="#0078B8", size=12),
+            ),
             gridcolor="#DDEAF4",
             zeroline=False,
             tickfont=dict(color="#092D55"),
@@ -1552,7 +1482,11 @@ def make_long_horizontal_bar(
     )
 
     fig.update_traces(
-        textfont=dict(color="#092D55", size=12, family="Inter"),
+        textfont=dict(
+            color="#092D55",
+            size=12,
+            family="Inter",
+        ),
         cliponaxis=False,
     )
 
@@ -1627,14 +1561,22 @@ def make_efficiency_comparison_bar(df):
             text="EFISIENSI",
             x=0.5,
             xanchor="center",
-            font=dict(size=26, color="#092D55", family="Inter"),
+            font=dict(
+                size=26,
+                color="#092D55",
+                family="Inter",
+            ),
         ),
         barmode="group",
         height=height,
         margin=dict(l=250, r=135, t=85, b=70),
         paper_bgcolor="#FFFFFF",
         plot_bgcolor="#F7FBFE",
-        font=dict(family="Inter", color="#092D55", size=12),
+        font=dict(
+            family="Inter",
+            color="#092D55",
+            size=12,
+        ),
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -1645,7 +1587,10 @@ def make_efficiency_comparison_bar(df):
             bgcolor="rgba(255,255,255,0)",
         ),
         xaxis=dict(
-            title=dict(text="Nilai Rupiah", font=dict(color="#0078B8", size=12)),
+            title=dict(
+                text="Nilai Rupiah",
+                font=dict(color="#0078B8", size=12),
+            ),
             gridcolor="#DDEAF4",
             zeroline=True,
             zerolinecolor="#B9D9EF",
@@ -1661,7 +1606,11 @@ def make_efficiency_comparison_bar(df):
     )
 
     fig.update_traces(
-        textfont=dict(color="#092D55", size=11, family="Inter"),
+        textfont=dict(
+            color="#092D55",
+            size=11,
+            family="Inter",
+        ),
         cliponaxis=False,
     )
 
@@ -1683,18 +1632,10 @@ with main_col:
     if menu == "Dashboard":
         render_header(
             "Sistem Pengelolaan Data Pengadaan",
-            "Dashboard ringkasan kinerja Purchase Order, efisiensi, dan lama proses PO.",
+            "Dashboard ringkasan kinerja Purchase Order, efisiensi, dan lama proses PO."
         )
 
         render_hero()
-
-        if not IS_EXTERNAL_DATABASE:
-            render_warning(
-                """
-                Saat ini aplikasi masih memakai SQLite lokal. Di Streamlit Cloud, data SQLite lokal bisa hilang saat app reboot.
-                Untuk penyimpanan permanen, isi DATABASE_URL di Streamlit Secrets.
-                """
-            )
 
         df = read_table(PROCESSED_TABLE)
 
@@ -1720,6 +1661,24 @@ with main_col:
             with col5:
                 render_metric_card("Rata-rata Lama PO", "0 Hari", "Rata-rata lama proses", "⏱️", "purple")
 
+            st.write("")
+
+            with st.container(border=True):
+                render_section_title(
+                    "Cara Menggunakan Sistem",
+                    "Ikuti alur berikut agar data dashboard muncul."
+                )
+                st.markdown(
+                    """
+                    1. Buka menu **Entry Data Excel**.  
+                    2. Pilih bulan data yang sesuai.  
+                    3. Upload file Excel PO.  
+                    4. Klik tombol **Proses dan Simpan ke Database**.  
+                    5. Buka kembali menu **Dashboard** untuk melihat grafik dan rekap data.  
+                    6. Gunakan menu **Database & Download** untuk mengunduh atau menghapus data berdasarkan bulan.
+                    """
+                )
+
         else:
             df = clean_dashboard_numeric(df)
 
@@ -1732,7 +1691,7 @@ with main_col:
                 selected_month_label = st.selectbox(
                     "Filter Bulan Data",
                     month_labels,
-                    index=0,
+                    index=0
                 )
 
                 selected_month = month_options[month_labels.index(selected_month_label)]
@@ -1773,7 +1732,7 @@ with main_col:
 
                 render_corporate_chart_title(
                     "PAKET PURCHASE ORDER (PO)",
-                    "Visualisasi jumlah dokumen paket PO berdasarkan status final pengadaan.",
+                    "Visualisasi jumlah dokumen paket PO berdasarkan status final pengadaan."
                 )
 
                 fig_paket = make_long_horizontal_bar(
@@ -1783,7 +1742,7 @@ with main_col:
                     title="PAKET PURCHASE ORDER (PO)",
                     x_title="Jumlah Dokumen Paket PO",
                     bar_color="#0078B8",
-                    value_mode="number",
+                    value_mode="number"
                 )
                 st.plotly_chart(fig_paket, use_container_width=True)
 
@@ -1791,7 +1750,7 @@ with main_col:
 
                 render_corporate_chart_title(
                     "EFISIENSI",
-                    "Perbandingan nilai HPS/OE, nilai PO, dan total efisiensi berdasarkan status final.",
+                    "Perbandingan nilai HPS/OE, nilai PO, dan total efisiensi berdasarkan status final."
                 )
 
                 fig_efisiensi = make_efficiency_comparison_bar(efisiensi)
@@ -1801,7 +1760,7 @@ with main_col:
 
                 render_corporate_chart_title(
                     "LAMA PROSES PURCHASE ORDER (PO)",
-                    "Visualisasi rata-rata lama proses PO per hari berdasarkan status final pengadaan.",
+                    "Visualisasi rata-rata lama proses PO per hari berdasarkan status final pengadaan."
                 )
 
                 fig_lama = make_long_horizontal_bar(
@@ -1811,7 +1770,7 @@ with main_col:
                     title="LAMA PROSES PURCHASE ORDER (PO)",
                     x_title="Rata-Rata Lama Proses PO Per Hari",
                     bar_color="#16A7A0",
-                    value_mode="day",
+                    value_mode="day"
                 )
                 st.plotly_chart(fig_lama, use_container_width=True)
 
@@ -1839,20 +1798,8 @@ with main_col:
     elif menu == "Entry Data Excel":
         render_header(
             "Entry Data Excel",
-            "Upload file Excel Purchase Order untuk diproses dan disimpan ke database.",
+            "Upload file Excel Purchase Order untuk diproses dan disimpan ke database."
         )
-
-        if IS_EXTERNAL_DATABASE:
-            render_success(
-                "Aplikasi sudah memakai database eksternal. Data akan tetap tersimpan sampai kamu menghapusnya dari menu Database & Download."
-            )
-        else:
-            render_warning(
-                """
-                Aplikasi masih memakai SQLite lokal. Untuk data permanen di Streamlit Cloud, isi DATABASE_URL di Secrets.
-                Kalau tidak, data masih bisa hilang saat app reboot.
-                """
-            )
 
         render_info(
             """
@@ -1866,7 +1813,7 @@ with main_col:
 
             periode_tanggal = st.date_input(
                 "Pilih Bulan Data",
-                value=get_now_wib().date(),
+                value=get_now_wib().date()
             )
 
             periode_data = get_month_key_from_date(periode_tanggal)
@@ -1880,7 +1827,7 @@ with main_col:
 
             uploaded_file = st.file_uploader(
                 "Upload file Excel",
-                type=["xlsx", "xlsm"],
+                type=["xlsx", "xlsm"]
             )
 
         if uploaded_file is not None:
@@ -1927,14 +1874,14 @@ with main_col:
                             df_po,
                             periode_data,
                             periode_label,
-                            uploaded_file.name,
+                            uploaded_file.name
                         )
 
                         df_processed_save = prepare_month_metadata(
                             df_processed,
                             periode_data,
                             periode_label,
-                            uploaded_file.name,
+                            uploaded_file.name
                         )
 
                         df_po_save = drop_empty_uploaded_rows(df_po_save)
@@ -1946,7 +1893,7 @@ with main_col:
                             uploaded_file.name,
                             len(df_processed_save),
                             periode_data,
-                            periode_label,
+                            periode_label
                         )
 
                         render_success(
@@ -1973,7 +1920,7 @@ with main_col:
                         )
 
             except Exception as e:
-                render_warning("File gagal diproses. Cek kembali format file Excel, koneksi database, dan nama sheet.")
+                render_warning("File gagal diproses. Cek kembali format file Excel dan nama sheet.")
                 st.exception(e)
 
         render_footer()
@@ -1981,7 +1928,7 @@ with main_col:
     elif menu == "Hasil Pengolahan Data":
         render_header(
             "Hasil Pengolahan Data",
-            "Menampilkan data PO yang sudah diproses dan ditambahkan kolom hasil olahan.",
+            "Menampilkan data PO yang sudah diproses dan ditambahkan kolom hasil olahan."
         )
 
         df = read_table(PROCESSED_TABLE)
@@ -1999,7 +1946,7 @@ with main_col:
                 selected_month_label = st.selectbox(
                     "Filter Bulan Data",
                     month_labels,
-                    index=0,
+                    index=0
                 )
 
                 selected_month = month_options[month_labels.index(selected_month_label)]
@@ -2019,7 +1966,7 @@ with main_col:
 
             excel_bytes = dataframe_to_excel_bytes(
                 {
-                    "Hasil Pengolahan": df,
+                    "Hasil Pengolahan": df
                 }
             )
 
@@ -2035,15 +1982,8 @@ with main_col:
     elif menu == "Database & Download":
         render_header(
             "Database & Download",
-            "Menampilkan database tersimpan, download data bulanan, dan hapus data berdasarkan bulan.",
+            "Menampilkan database tersimpan, download data bulanan, dan hapus data berdasarkan bulan."
         )
-
-        if IS_EXTERNAL_DATABASE:
-            render_success("Database eksternal aktif. Data akan tetap tersimpan selama belum dihapus.")
-        else:
-            render_warning(
-                "Database masih SQLite lokal. Untuk penyimpanan permanen di Streamlit Cloud, gunakan DATABASE_URL eksternal."
-            )
 
         available_months = get_available_months()
 
@@ -2057,7 +1997,7 @@ with main_col:
 
                 selected_month_label = st.selectbox(
                     "Pilih Bulan Data",
-                    month_labels,
+                    month_labels
                 )
 
                 selected_month = available_months[month_labels.index(selected_month_label)]
@@ -2080,7 +2020,7 @@ with main_col:
                         "Periode Data",
                         selected_month_label,
                         "Bulan data yang dipilih",
-                        "📅",
+                        "📅"
                     )
 
                 with col_b:
@@ -2088,7 +2028,7 @@ with main_col:
                         "Jumlah Data",
                         format_number(len(df_processed_month)),
                         "Total baris data aktif",
-                        "🗄️",
+                        "🗄️"
                     )
 
                 with col_c:
@@ -2096,7 +2036,7 @@ with main_col:
                         "Total Paket PO",
                         format_number(df_processed_month["Purchasing Document"].nunique() if not df_processed_month.empty else 0),
                         "Paket PO unik pada bulan ini",
-                        "📦",
+                        "📦"
                     )
 
                 monthly_excel = dataframe_to_excel_bytes(
@@ -2172,7 +2112,7 @@ with main_col:
 
                     raw_excel = dataframe_to_excel_bytes(
                         {
-                            "Data Mentah": df_raw,
+                            "Data Mentah": df_raw
                         }
                     )
 
@@ -2246,5 +2186,14 @@ with main_col:
                         file_name="database_po_export_semua.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     )
+
+                if os.path.exists(DB_PATH):
+                    with open(DB_PATH, "rb") as db_file:
+                        st.download_button(
+                            label="Download Database SQLite (.db)",
+                            data=db_file,
+                            file_name="po_database.db",
+                            mime="application/octet-stream",
+                        )
 
         render_footer()

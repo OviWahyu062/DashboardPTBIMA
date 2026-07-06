@@ -107,19 +107,51 @@ DATABASE_URL = get_database_url()
 IS_EXTERNAL_DATABASE = DATABASE_URL.startswith("postgresql")
 
 
+def validate_database_url(database_url):
+    if database_url.startswith("sqlite"):
+        return True
+
+    if "username" in database_url or "password" in database_url or "host" in database_url or ":port" in database_url:
+        st.error(
+            "DATABASE_URL masih berisi contoh/placeholder. "
+            "Ganti username, password, host, port, dan database dengan data asli dari Supabase."
+        )
+        st.stop()
+
+    return True
+
+
 @st.cache_resource
 def get_engine():
-    if DATABASE_URL.startswith("postgresql"):
+    validate_database_url(DATABASE_URL)
+
+    try:
+        if DATABASE_URL.startswith("postgresql"):
+            return create_engine(
+                DATABASE_URL,
+                pool_pre_ping=True,
+                connect_args={"sslmode": "require"},
+            )
+
         return create_engine(
             DATABASE_URL,
-            pool_pre_ping=True,
-            connect_args={"sslmode": "require"},
+            connect_args={"check_same_thread": False},
         )
 
-    return create_engine(
-        DATABASE_URL,
-        connect_args={"check_same_thread": False},
-    )
+    except ValueError:
+        st.error(
+            "Format DATABASE_URL salah. Pastikan port berupa angka, contoh ':5432', "
+            "bukan ':port'. Contoh benar: "
+            "postgresql://postgres:password@db.xxxxx.supabase.co:5432/postgres"
+        )
+        st.stop()
+
+    except Exception as e:
+        st.error(
+            "Koneksi database gagal. Periksa lagi DATABASE_URL di Streamlit Secrets."
+        )
+        st.exception(e)
+        st.stop()
 
 
 engine = get_engine()

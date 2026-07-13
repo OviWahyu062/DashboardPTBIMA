@@ -1315,30 +1315,39 @@ def process_po_data(df_po, df_kk=None):
 
 
 
-            df["Lama Proses PO"] = pd.to_numeric(
-                df["Lama Proses PO_y"],
-                errors="coerce"
-            ).fillna(0)
+# ambil kolom Lama Proses PO hasil merge
+
+if "Lama Proses PO_y" in df.columns:
+
+    df["Lama Proses PO"] = pd.to_numeric(
+        df["Lama Proses PO_y"],
+        errors="coerce"
+    ).fillna(0)
+
+
+elif "Lama Proses PO" in df.columns:
+
+    df["Lama Proses PO"] = pd.to_numeric(
+        df["Lama Proses PO"],
+        errors="coerce"
+    ).fillna(0)
+
+
+else:
+
+    df["Lama Proses PO"] = 0
 
 
 
-            df = df.drop(
-                columns=[
-                    "_PO_KEY",
-                    "Purchase Order",
-                    "Lama Proses PO_y"
-                ],
-                errors="ignore"
-            )
-
-
-
-            df = df.rename(
-                columns={
-                    "Lama Proses PO_x":
-                    "Lama Proses PO"
-                }
-            )
+df = df.drop(
+    columns=[
+        "_PO_KEY",
+        "Purchase Order",
+        "Lama Proses PO_y",
+        "Lama Proses PO_x"
+    ],
+    errors="ignore"
+)
 
 
     return drop_empty_uploaded_rows(df)

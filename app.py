@@ -64,6 +64,66 @@ def format_rupiah_ringkas(value):
     return f"Rp {format_number(number)}"
 
 
+def clean_dashboard_numeric(df):
+    """Pastikan kolom angka dari SQLite dapat dihitung dan dibuat grafik."""
+    result = df.copy()
+    numeric_columns = set(NUMERIC_COLUMNS) | {
+        "Total Valuation Price",
+        "Efisiensi",
+        "Prosentase",
+        "Lama Proses PO",
+    }
+    for column in numeric_columns:
+        if column in result.columns:
+            result[column] = pd.to_numeric(
+                result[column], errors="coerce"
+            ).fillna(0)
+    return result
+
+
+def dataframe_to_excel_bytes(sheets):
+    """Ubah kumpulan DataFrame menjadi satu workbook Excel di memori."""
+    if isinstance(sheets, pd.DataFrame):
+        sheets = {"Data": sheets}
+
+    if not isinstance(sheets, dict) or not sheets:
+        raise ValueError("Data Excel harus berupa DataFrame atau dictionary sheet.")
+
+    output = BytesIO()
+    used_sheet_names = set()
+
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        for index, (sheet_name, dataframe) in enumerate(sheets.items(), start=1):
+            safe_name = str(sheet_name or f"Sheet{index}")
+            for character in "[]:*?/\\":
+                safe_name = safe_name.replace(character, " ")
+            safe_name = safe_name.strip()[:31] or f"Sheet{index}"
+
+            base_name = safe_name
+            counter = 2
+            while safe_name.lower() in used_sheet_names:
+                suffix = f"_{counter}"
+                safe_name = f"{base_name[:31-len(suffix)]}{suffix}"
+                counter += 1
+            used_sheet_names.add(safe_name.lower())
+
+            if dataframe is None:
+                dataframe = pd.DataFrame()
+            elif not isinstance(dataframe, pd.DataFrame):
+                dataframe = pd.DataFrame(dataframe)
+
+            export_df = dataframe.copy()
+            # Excel tidak mendukung datetime yang masih memiliki timezone.
+            for column in export_df.columns:
+                if isinstance(export_df[column].dtype, pd.DatetimeTZDtype):
+                    export_df[column] = export_df[column].dt.tz_localize(None)
+
+            export_df.to_excel(writer, sheet_name=safe_name, index=False)
+
+    output.seek(0)
+    return output.getvalue()
+
+
 # ==============================
 # KONFIGURASI IDENTIFIKASI EXCEL
 # ==============================

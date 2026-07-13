@@ -2035,16 +2035,16 @@ with main_col:
             total_order = df["Net Order Value"].sum() if not df.empty else 0
             total_efisiensi = df["Efisiensi"].sum() if not df.empty else 0
             if "Lama Proses PO" in df.columns:
-    avg_lama_proses = (
-        pd.to_numeric(
-            df["Lama Proses PO"],
-            errors="coerce"
-        )
-        .fillna(0)
-        .mean()
-    )
-else:
-    avg_lama_proses = 0
+                avg_lama_proses = (
+                    pd.to_numeric(
+                        df["Lama Proses PO"],
+                        errors="coerce"
+                    )
+                    .fillna(0)
+                    .mean()
+                )
+            else:
+                avg_lama_proses = 0
 
             col1, col2, col3, col4, col5 = st.columns(5)
 

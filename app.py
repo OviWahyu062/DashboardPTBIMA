@@ -21,10 +21,26 @@ RAW_TABLE = "po_raw"
 PROCESSED_TABLE = "po_processed"
 UPLOAD_TABLE = "uploaded_files"
 
-PO_SHEET_NAME = "PO April 2026"
-KK_SHEET_NAME = "KK Pemaketan"
-
 TIMEZONE = ZoneInfo("Asia/Jakarta")
+
+
+# ==============================
+# KONFIGURASI IDENTIFIKASI EXCEL
+# ==============================
+
+# Tidak menggunakan nama sheet tetap lagi.
+# Sistem mencari berdasarkan nama kolom.
+
+PO_REQUIRED_IDENTIFIER = [
+    "Purchasing Document"
+]
+
+
+KK_REQUIRED_IDENTIFIER = [
+    "Purchase Order",
+    "Lama Proses PO"
+]
+
 
 REQUIRED_COLUMNS = [
     "Purchasing Document",
@@ -53,6 +69,7 @@ REQUIRED_COLUMNS = [
     "Valuation Price",
 ]
 
+
 NUMERIC_COLUMNS = [
     "Net Order Value",
     "Net Order Price",
@@ -63,7 +80,6 @@ NUMERIC_COLUMNS = [
     "Still to be invoiced (Value)",
     "Valuation Price",
 ]
-
 
 # ==============================
 # SETTING HALAMAN
@@ -918,282 +934,599 @@ def prepare_month_metadata(df, month_key, month_label, uploaded_file_name):
 # PENGOLAHAN DATA EXCEL
 # ==============================
 
+
+def find_po_sheet(xls):
+    """
+    Mencari sheet PO utama berdasarkan kolom
+    Purchasing Document
+    """
+
+    for sheet in xls.sheet_names:
+
+        try:
+            df_temp = pd.read_excel(
+                xls,
+                sheet_name=sheet,
+                nrows=5
+            )
+
+            columns = [
+                str(col).strip()
+                for col in df_temp.columns
+            ]
+
+            if "Purchasing Document" in columns:
+                return sheet
+
+        except Exception:
+            continue
+
+    return None
+
+
+
+def find_kk_sheet(xls):
+    """
+    Mencari sheet KK Pemaketan berdasarkan:
+    Purchase Order
+    Lama Proses PO
+    """
+
+    for sheet in xls.sheet_names:
+
+        try:
+            df_temp = pd.read_excel(
+                xls,
+                sheet_name=sheet,
+                nrows=5
+            )
+
+            columns = [
+                str(col).strip()
+                for col in df_temp.columns
+            ]
+
+            if (
+                "Purchase Order" in columns
+                and
+                "Lama Proses PO" in columns
+            ):
+                return sheet
+
+        except Exception:
+            continue
+
+    return None
+
+
+
 def validate_columns(df):
-    missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+
+    missing_columns = [
+        col
+        for col in REQUIRED_COLUMNS
+        if col not in df.columns
+    ]
+
     return missing_columns
 
 
+
 def clean_numeric_columns(df):
+
     for col in NUMERIC_COLUMNS:
+
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+            df[col] = pd.to_numeric(
+                df[col],
+                errors="coerce"
+            ).fillna(0)
 
     return df
 
 
-def contains_text(series, keyword):
-    return series.astype(str).str.contains(
-        keyword,
-        case=False,
-        na=False,
-        regex=False
+
+def process_po_data(df_po, df_kk=None):
+
+    df = df_po.copy()
+
+    df = drop_empty_uploaded_rows(df)
+
+    df = clean_numeric_columns(df)
+
+
+    # ==============================
+    # HITUNG TOTAL VALUE
+    # ==============================
+
+    df["Total Valuation Price"] = (
+        df["Valuation Price"]
+        *
+        df["Order Quantity"]
     )
 
 
-def process_po_data(df_po, df_kk=None):
-    df = df_po.copy()
-    df = drop_empty_uploaded_rows(df)
-    df = clean_numeric_columns(df)
+    header = (
+        df["Header Text PO"]
+        .fillna("")
+        .astype(str)
+    )
 
-    df["Total Valuation Price"] = df["Valuation Price"] * df["Order Quantity"]
 
-    header = df["Header Text PO"].fillna("").astype(str)
+    df["PIR"] = contains_text(
+        header,
+        "PIR"
+    )
 
-    df["PIR"] = contains_text(header, "PIR")
 
     df["PENGADAAN LANGSUNG PENYELENGGARA"] = contains_text(
         header,
         "PENGADAAN LANGSUNG PENYELENGGARA"
     )
 
+
     df["PENGADAAN LANGSUNG NON PENYELENGGARA"] = contains_text(
         header,
         "PENGADAAN LANGSUNG NON PENYELENGGARA"
     )
+
 
     df["PENUNJUKAN LANGSUNG"] = contains_text(
         header,
         "PENUNJUKAN LANGSUNG"
     )
 
-    df["tender"] = contains_text(header, "tender")
+
+    df["tender"] = contains_text(
+        header,
+        "tender"
+    )
+
+
 
     def get_status_final(row):
-        requisitioner = str(row.get("Requisitioner", "")).strip().upper()
+
+        requisitioner = (
+            str(row.get("Requisitioner",""))
+            .strip()
+            .upper()
+        )
+
 
         if requisitioner == "BIMA001":
             return "PENUNJUKAN LANGSUNG"
-        elif bool(row.get("PIR")):
+
+
+        elif row["PIR"]:
             return "PIR"
-        elif bool(row.get("PENGADAAN LANGSUNG PENYELENGGARA")):
+
+
+        elif row["PENGADAAN LANGSUNG PENYELENGGARA"]:
             return "PENGADAAN LANGSUNG PENYELENGGARA"
-        elif bool(row.get("PENGADAAN LANGSUNG NON PENYELENGGARA")):
+
+
+        elif row["PENGADAAN LANGSUNG NON PENYELENGGARA"]:
             return "PENGADAAN LANGSUNG NON PENYELENGGARA"
-        elif bool(row.get("PENUNJUKAN LANGSUNG")):
+
+
+        elif row["PENUNJUKAN LANGSUNG"]:
             return "PENUNJUKAN LANGSUNG"
-        elif bool(row.get("tender")):
+
+
+        elif row["tender"]:
             return "Tender Terbatas"
+
+
         else:
             return "Tidak Teridentifikasi"
 
-    df["Status Final"] = df.apply(get_status_final, axis=1)
+
+
+    df["Status Final"] = df.apply(
+        get_status_final,
+        axis=1
+    )
+
+
 
     def get_prj(row):
-        header_text = str(row.get("Header Text PO", "")).upper()
-        requisitioner = str(row.get("Requisitioner", "")).strip().upper()
+
+        header_text = (
+            str(row.get("Header Text PO",""))
+            .upper()
+        )
+
+        requisitioner = (
+            str(row.get("Requisitioner",""))
+            .strip()
+            .upper()
+        )
+
 
         if "PRJ" in header_text:
             return "Project"
+
+
         elif requisitioner == "BIMA001":
             return "Inbound"
+
+
         else:
             return "Pemeliharaan"
 
-    df["PRJ"] = df.apply(get_prj, axis=1)
+
+
+    df["PRJ"] = df.apply(
+        get_prj,
+        axis=1
+    )
+
+
+
+    # ==============================
+    # EFISIENSI
+    # ==============================
 
     df["Efisiensi"] = df.apply(
-        lambda row: 0
+        lambda row:
+        0
         if row["Valuation Price"] == 0
-        else (row["Net Order Price"] - row["Valuation Price"]) * row["Order Quantity"],
-        axis=1,
+        else
+        (
+            row["Net Order Price"]
+            -
+            row["Valuation Price"]
+        )
+        *
+        row["Order Quantity"],
+        axis=1
     )
+
+
 
     df["Prosentase"] = df.apply(
-        lambda row: 0
-        if row["Valuation Price"] == 0 or row["Net Order Price"] == 0
-        else (row["Net Order Price"] - row["Valuation Price"]) / row["Net Order Price"],
-        axis=1,
+        lambda row:
+        0
+        if (
+            row["Valuation Price"] == 0
+            or
+            row["Net Order Price"] == 0
+        )
+        else
+        (
+            row["Net Order Price"]
+            -
+            row["Valuation Price"]
+        )
+        /
+        row["Net Order Price"],
+        axis=1
     )
 
-    if df_kk is not None and not df_kk.empty:
-        df_kk = drop_empty_kk_rows(df_kk)
 
-        if "Purchase Order" in df_kk.columns and "Lama Proses PO" in df_kk.columns:
-            kk_lookup = df_kk[["Purchase Order", "Lama Proses PO"]].copy()
+
+    # ==============================
+    # REVISI UTAMA
+    # MENGAMBIL LAMA PROSES PO
+    # ==============================
+
+    df["Lama Proses PO"] = 0
+
+
+    if (
+        df_kk is not None
+        and not df_kk.empty
+    ):
+
+
+        if (
+            "Purchase Order" in df_kk.columns
+            and
+            "Lama Proses PO" in df_kk.columns
+        ):
+
+
+            kk_lookup = df_kk[
+                [
+                    "Purchase Order",
+                    "Lama Proses PO"
+                ]
+            ].copy()
+
+
+
+            # samakan format nomor PO
 
             kk_lookup["Purchase Order"] = (
                 kk_lookup["Purchase Order"]
                 .astype(str)
-                .str.replace(r"\.0$", "", regex=True)
+                .str.replace(
+                    ".0",
+                    "",
+                    regex=False
+                )
+                .str.strip()
             )
 
-            kk_lookup = kk_lookup.dropna(subset=["Purchase Order"])
-            kk_lookup = kk_lookup.drop_duplicates("Purchase Order")
 
-            df["_po_key"] = (
+
+            kk_lookup["Lama Proses PO"] = pd.to_numeric(
+                kk_lookup["Lama Proses PO"],
+                errors="coerce"
+            )
+
+
+
+            # mengikuti fungsi MATCH Excel
+            # ambil data pertama
+
+            kk_lookup = (
+                kk_lookup
+                .drop_duplicates(
+                    subset=[
+                        "Purchase Order"
+                    ],
+                    keep="first"
+                )
+            )
+
+
+
+            df["_PO_KEY"] = (
                 df["Purchasing Document"]
                 .astype(str)
-                .str.replace(r"\.0$", "", regex=True)
+                .str.replace(
+                    ".0",
+                    "",
+                    regex=False
+                )
+                .str.strip()
             )
+
+
 
             df = df.merge(
                 kk_lookup,
-                left_on="_po_key",
-                right_on="Purchase Order",
                 how="left",
+                left_on="_PO_KEY",
+                right_on="Purchase Order"
             )
 
+
+
             df["Lama Proses PO"] = pd.to_numeric(
-                df["Lama Proses PO"],
+                df["Lama Proses PO_y"],
                 errors="coerce"
             ).fillna(0)
 
+
+
             df = df.drop(
-                columns=["_po_key", "Purchase Order"],
+                columns=[
+                    "_PO_KEY",
+                    "Purchase Order",
+                    "Lama Proses PO_y"
+                ],
                 errors="ignore"
             )
-        else:
-            df["Lama Proses PO"] = 0
-    else:
-        df["Lama Proses PO"] = 0
 
-    df = drop_empty_uploaded_rows(df)
 
-    return df
+
+            df = df.rename(
+                columns={
+                    "Lama Proses PO_x":
+                    "Lama Proses PO"
+                }
+            )
+
+
+    return drop_empty_uploaded_rows(df)
+
 
 
 def read_excel_file(uploaded_file):
-    xls = pd.ExcelFile(uploaded_file, engine="openpyxl")
 
-    if PO_SHEET_NAME in xls.sheet_names:
-        df_po = pd.read_excel(xls, sheet_name=PO_SHEET_NAME)
-    else:
-        df_po = pd.read_excel(xls, sheet_name=xls.sheet_names[0])
+    xls = pd.ExcelFile(
+        uploaded_file,
+        engine="openpyxl"
+    )
 
-    if KK_SHEET_NAME in xls.sheet_names:
-        df_kk = pd.read_excel(xls, sheet_name=KK_SHEET_NAME)
+
+    po_sheet = find_po_sheet(xls)
+
+    kk_sheet = find_kk_sheet(xls)
+
+
+
+    if po_sheet is None:
+
+        raise Exception(
+            "Sheet PO tidak ditemukan. Pastikan ada kolom Purchasing Document."
+        )
+
+
+    df_po = pd.read_excel(
+        xls,
+        sheet_name=po_sheet
+    )
+
+
+
+    if kk_sheet is not None:
+
+        df_kk = pd.read_excel(
+            xls,
+            sheet_name=kk_sheet
+        )
+
     else:
+
         df_kk = pd.DataFrame()
 
-    df_po = drop_empty_uploaded_rows(df_po)
-    df_kk = drop_empty_kk_rows(df_kk)
 
-    return df_po, df_kk, xls.sheet_names
 
+    df_po = drop_empty_uploaded_rows(
+        df_po
+    )
+
+
+    df_kk = drop_empty_kk_rows(
+        df_kk
+    )
+
+
+    return (
+        df_po,
+        df_kk,
+        xls.sheet_names
+    )
 
 # ==============================
 # REKAP DASHBOARD
 # ==============================
 
 def make_rekap(df):
+
     df = drop_empty_uploaded_rows(df)
+
 
     if df.empty:
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
+        return (
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame()
+        )
+
+
+    # Pastikan Lama Proses PO selalu numeric
+
+    if "Lama Proses PO" in df.columns:
+
+        df["Lama Proses PO"] = pd.to_numeric(
+            df["Lama Proses PO"],
+            errors="coerce"
+        ).fillna(0)
+
+    else:
+
+        df["Lama Proses PO"] = 0
+
+
+
+    # ==============================
+    # REKAP JUMLAH PAKET PO
+    # ==============================
 
     paket_po = (
-        df.groupby("Status Final", dropna=False)["Purchasing Document"]
+        df.groupby(
+            "Status Final",
+            dropna=False
+        )
+        [
+            "Purchasing Document"
+        ]
         .nunique()
-        .reset_index(name="Jumlah Paket PO")
-        .sort_values("Jumlah Paket PO", ascending=False)
+        .reset_index(
+            name="Jumlah Paket PO"
+        )
+        .sort_values(
+            "Jumlah Paket PO",
+            ascending=False
+        )
     )
+
+
+
+    # ==============================
+    # REKAP EFISIENSI
+    # ==============================
 
     efisiensi = (
-        df.groupby("Status Final", dropna=False)
-        .agg(
-            Total_Net_Order_Value=("Net Order Value", "sum"),
-            Total_Valuation_Price=("Total Valuation Price", "sum"),
-            Total_Efisiensi=("Efisiensi", "sum"),
-            Rata_Rata_Prosentase=("Prosentase", "mean"),
+
+        df.groupby(
+            "Status Final",
+            dropna=False
         )
+        .agg(
+
+            Total_Net_Order_Value=
+            (
+                "Net Order Value",
+                "sum"
+            ),
+
+            Total_Valuation_Price=
+            (
+                "Total Valuation Price",
+                "sum"
+            ),
+
+            Total_Efisiensi=
+            (
+                "Efisiensi",
+                "sum"
+            ),
+
+            Rata_Rata_Prosentase=
+            (
+                "Prosentase",
+                "mean"
+            ),
+
+        )
+
         .reset_index()
+
     )
+
+
+
+    # ==============================
+    # REKAP LAMA PROSES PO
+    # ==============================
 
     lama_proses = (
-        df.groupby("Status Final", dropna=False)
-        .agg(
-            Rata_Rata_Lama_Proses_PO=("Lama Proses PO", "mean"),
-            Maksimal_Lama_Proses_PO=("Lama Proses PO", "max"),
-            Jumlah_Data=("Purchasing Document", "count"),
+
+        df.groupby(
+            "Status Final",
+            dropna=False
         )
+
+        .agg(
+
+            Rata_Rata_Lama_Proses_PO=
+            (
+                "Lama Proses PO",
+                "mean"
+            ),
+
+            Maksimal_Lama_Proses_PO=
+            (
+                "Lama Proses PO",
+                "max"
+            ),
+
+            Jumlah_Data=
+            (
+                "Purchasing Document",
+                "count"
+            ),
+
+        )
+
         .reset_index()
+
     )
 
-    return paket_po, efisiensi, lama_proses
 
 
-def dataframe_to_excel_bytes(sheets: dict):
-    output = BytesIO()
-
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        for sheet_name, df in sheets.items():
-            if sheet_name in ["Data Mentah", "Hasil Pengolahan"]:
-                df = drop_empty_uploaded_rows(df)
-            df.to_excel(writer, sheet_name=sheet_name[:31], index=False)
-
-    output.seek(0)
-    return output.getvalue()
-
-
-def format_rupiah(value):
-    try:
-        return f"Rp {float(value):,.0f}".replace(",", ".")
-    except Exception:
-        return "Rp 0"
-
-
-def format_rupiah_ringkas(value):
-    try:
-        angka = float(value)
-        tanda = "-" if angka < 0 else ""
-        angka_abs = abs(angka)
-
-        if angka_abs >= 1_000_000_000_000:
-            hasil = angka_abs / 1_000_000_000_000
-            return f"Rp {tanda}{hasil:,.2f} T".replace(",", "X").replace(".", ",").replace("X", ".")
-
-        if angka_abs >= 1_000_000_000:
-            hasil = angka_abs / 1_000_000_000
-            return f"Rp {tanda}{hasil:,.2f} M".replace(",", "X").replace(".", ",").replace("X", ".")
-
-        if angka_abs >= 1_000_000:
-            hasil = angka_abs / 1_000_000
-            return f"Rp {tanda}{hasil:,.2f} Jt".replace(",", "X").replace(".", ",").replace("X", ".")
-
-        if angka_abs >= 1_000:
-            hasil = angka_abs / 1_000
-            return f"Rp {tanda}{hasil:,.2f} Rb".replace(",", "X").replace(".", ",").replace("X", ".")
-
-        return f"Rp {tanda}{angka_abs:,.0f}".replace(",", ".")
-
-    except Exception:
-        return "Rp 0"
-
-
-def format_number(value):
-    try:
-        return f"{int(value):,}".replace(",", ".")
-    except Exception:
-        return "0"
-
-
-def clean_dashboard_numeric(df):
-    df = drop_empty_uploaded_rows(df)
-
-    numeric_cols = [
-        "Net Order Value",
-        "Total Valuation Price",
-        "Efisiensi",
-        "Prosentase",
-        "Lama Proses PO",
-    ]
-
-    for col in numeric_cols:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-
-    return df
-
+    return (
+        paket_po,
+        efisiensi,
+        lama_proses
+    )
 
 # ==============================
 # KOMPONEN UI
@@ -1702,7 +2035,17 @@ with main_col:
             total_rows = len(df)
             total_order = df["Net Order Value"].sum() if not df.empty else 0
             total_efisiensi = df["Efisiensi"].sum() if not df.empty else 0
-            avg_lama_proses = df["Lama Proses PO"].mean() if not df.empty else 0
+            if "Lama Proses PO" in df.columns:
+    avg_lama_proses = (
+        pd.to_numeric(
+            df["Lama Proses PO"],
+            errors="coerce"
+        )
+        .fillna(0)
+        .mean()
+    )
+else:
+    avg_lama_proses = 0
 
             col1, col2, col3, col4, col5 = st.columns(5)
 
@@ -1867,8 +2210,23 @@ with main_col:
                         if replace_month_data:
                             delete_data_by_month(periode_data)
 
-                        df_processed = process_po_data(df_po, df_kk)
-                        df_processed = drop_empty_uploaded_rows(df_processed)
+                        df_processed = process_po_data(
+    df_po,
+    df_kk
+)
+
+# pastikan kolom Lama Proses PO tersimpan numeric
+if "Lama Proses PO" in df_processed.columns:
+
+    df_processed["Lama Proses PO"] = pd.to_numeric(
+        df_processed["Lama Proses PO"],
+        errors="coerce"
+    ).fillna(0)
+
+
+df_processed = drop_empty_uploaded_rows(
+    df_processed
+)
 
                         df_po_save = prepare_month_metadata(
                             df_po,
@@ -1886,6 +2244,15 @@ with main_col:
 
                         df_po_save = drop_empty_uploaded_rows(df_po_save)
                         df_processed_save = drop_empty_uploaded_rows(df_processed_save)
+
+# Validasi akhir Lama Proses PO
+
+if "Lama Proses PO" in df_processed_save.columns:
+
+    df_processed_save["Lama Proses PO"] = pd.to_numeric(
+        df_processed_save["Lama Proses PO"],
+        errors="coerce"
+    ).fillna(0)
 
                         save_dataframe_to_db(df_po_save, df_processed_save, mode="append")
 

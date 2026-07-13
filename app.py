@@ -1403,17 +1403,16 @@ def make_rekap(df):
     # Pastikan Lama Proses PO selalu numeric
 
     if "Lama Proses PO" in df.columns:
-
-        df["Lama Proses PO"] = pd.to_numeric(
+    avg_lama_proses = (
+        pd.to_numeric(
             df["Lama Proses PO"],
             errors="coerce"
-        ).fillna(0)
-
-    else:
-
-        df["Lama Proses PO"] = 0
-
-
+        )
+        .fillna(0)
+        .mean()
+    )
+else:
+    avg_lama_proses = 0
 
     # ==============================
     # REKAP JUMLAH PAKET PO
@@ -2245,16 +2244,21 @@ df_processed = drop_empty_uploaded_rows(
                         df_po_save = drop_empty_uploaded_rows(df_po_save)
                         df_processed_save = drop_empty_uploaded_rows(df_processed_save)
 
-# Validasi akhir Lama Proses PO
+                        # Validasi akhir Lama Proses PO
 
-if "Lama Proses PO" in df_processed_save.columns:
+                        if "Lama Proses PO" in df_processed_save.columns:
 
-    df_processed_save["Lama Proses PO"] = pd.to_numeric(
-        df_processed_save["Lama Proses PO"],
-        errors="coerce"
-    ).fillna(0)
+                            df_processed_save["Lama Proses PO"] = pd.to_numeric(
+                                df_processed_save["Lama Proses PO"],
+                                errors="coerce"
+                            ).fillna(0)
 
-                        save_dataframe_to_db(df_po_save, df_processed_save, mode="append")
+
+                        save_dataframe_to_db(
+                            df_po_save,
+                            df_processed_save,
+                            mode="append"
+                        )
 
                         save_upload_history(
                             uploaded_file.name,

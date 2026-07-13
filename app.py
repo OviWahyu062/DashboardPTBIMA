@@ -1228,127 +1228,45 @@ def process_po_data(df_po, df_kk=None):
     # MENGAMBIL LAMA PROSES PO
     # ==============================
 
-    df["Lama Proses PO"] = 0
+    # Nilai default apabila sheet KK atau pasangan nomor PO tidak ditemukan.
+    df["Lama Proses PO"] = 0.0
 
+    if df_kk is not None and not df_kk.empty:
+        required_kk_columns = {"Purchase Order", "Lama Proses PO"}
 
-    if (
-        df_kk is not None
-        and not df_kk.empty
-    ):
+        if required_kk_columns.issubset(df_kk.columns):
+            kk_lookup = df_kk[["Purchase Order", "Lama Proses PO"]].copy()
 
-
-        if (
-            "Purchase Order" in df_kk.columns
-            and
-            "Lama Proses PO" in df_kk.columns
-        ):
-
-
-            kk_lookup = df_kk[
-                [
-                    "Purchase Order",
-                    "Lama Proses PO"
-                ]
-            ].copy()
-
-
-
-            # samakan format nomor PO
-
-            kk_lookup["Purchase Order"] = (
+            # Samakan format nomor PO dari kedua sheet. Regex hanya membuang
+            # akhiran .0, bukan teks ".0" yang mungkin berada di tengah nomor.
+            kk_lookup["_PO_KEY"] = (
                 kk_lookup["Purchase Order"]
-                .astype(str)
-                .str.replace(
-                    ".0",
-                    "",
-                    regex=False
-                )
+                .astype("string")
                 .str.strip()
+                .str.replace(r"\.0$", "", regex=True)
             )
-
-
-
             kk_lookup["Lama Proses PO"] = pd.to_numeric(
-                kk_lookup["Lama Proses PO"],
-                errors="coerce"
+                kk_lookup["Lama Proses PO"], errors="coerce"
             )
 
-
-
-            # mengikuti fungsi MATCH Excel
-            # ambil data pertama
-
-            kk_lookup = (
-                kk_lookup
-                .drop_duplicates(
-                    subset=[
-                        "Purchase Order"
-                    ],
-                    keep="first"
-                )
+            # Setara MATCH Excel: gunakan kemunculan pertama untuk setiap PO.
+            kk_lookup = kk_lookup.dropna(subset=["_PO_KEY"]).drop_duplicates(
+                subset="_PO_KEY", keep="first"
             )
+            lama_proses_by_po = kk_lookup.set_index("_PO_KEY")["Lama Proses PO"]
 
-
-
-            df["_PO_KEY"] = (
+            po_key = (
                 df["Purchasing Document"]
-                .astype(str)
-                .str.replace(
-                    ".0",
-                    "",
-                    regex=False
-                )
+                .astype("string")
                 .str.strip()
+                .str.replace(r"\.0$", "", regex=True)
             )
+            df["Lama Proses PO"] = po_key.map(lama_proses_by_po).fillna(0)
 
-            df = df.drop(
-                columns=["Lama Proses PO"],
-                errors="ignore"
-            )
-
-            df = df.merge(
-                kk_lookup,
-                how="left",
-                left_on="_PO_KEY",
-                right_on="Purchase Order"
-            )
-
-
-
-# ambil kolom Lama Proses PO hasil merge
-
-if "Lama Proses PO_y" in df.columns:
-
+    # Jamin hanya ada satu Series numerik dengan nama kolom ini.
     df["Lama Proses PO"] = pd.to_numeric(
-        df["Lama Proses PO_y"],
-        errors="coerce"
+        df["Lama Proses PO"], errors="coerce"
     ).fillna(0)
-
-
-elif "Lama Proses PO" in df.columns:
-
-    df["Lama Proses PO"] = pd.to_numeric(
-        df["Lama Proses PO"],
-        errors="coerce"
-    ).fillna(0)
-
-
-else:
-
-    df["Lama Proses PO"] = 0
-
-
-
-df = df.drop(
-    columns=[
-        "_PO_KEY",
-        "Purchase Order",
-        "Lama Proses PO_y",
-        "Lama Proses PO_x"
-    ],
-    errors="ignore"
-)
-
 
     return drop_empty_uploaded_rows(df)
 

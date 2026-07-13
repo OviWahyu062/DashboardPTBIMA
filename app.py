@@ -1025,7 +1025,24 @@ def clean_numeric_columns(df):
 
     return df
 
+# TAMBAHKAN INI
 
+def contains_text(series, keyword):
+    """
+    Mengecek apakah kolom mengandung teks tertentu
+    tanpa membedakan huruf besar kecil.
+    """
+
+    return (
+        series
+        .fillna("")
+        .astype(str)
+        .str.upper()
+        .str.contains(
+            keyword.upper(),
+            na=False
+        )
+    )
 
 def process_po_data(df_po, df_kk=None):
 

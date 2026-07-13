@@ -2182,7 +2182,8 @@ with main_col:
                     f"File <b>{uploaded_file.name}</b> berhasil dibaca. Sheet yang ditemukan: <b>{', '.join(sheet_names)}</b>."
                 )
 
-                st.info(f"Jumlah baris data valid yang terbaca: {{total_setelah_bersih:,} baris.")
+                st.info(
+                    f"Jumlah baris data valid yang terbaca: {total_setelah_bersih:,} baris.")
 
                 missing_columns = validate_columns(df_po)
 

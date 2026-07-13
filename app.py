@@ -2214,18 +2214,20 @@ with main_col:
     df_kk
 )
 
-# pastikan kolom Lama Proses PO tersimpan numeric
-if "Lama Proses PO" in df_processed.columns:
 
-    df_processed["Lama Proses PO"] = pd.to_numeric(
-        df_processed["Lama Proses PO"],
-        errors="coerce"
-    ).fillna(0)
+                        # pastikan kolom Lama Proses PO tersimpan numeric
+                        if "Lama Proses PO" in df_processed.columns:
+
+                            df_processed["Lama Proses PO"] = pd.to_numeric(
+                                df_processed["Lama Proses PO"],
+                                errors="coerce"
+                            ).fillna(0)
 
 
-df_processed = drop_empty_uploaded_rows(
-    df_processed
-)
+                        df_processed = drop_empty_uploaded_rows(
+                            df_processed
+                        )
+
 
                         df_po_save = prepare_month_metadata(
                             df_po,
@@ -2234,6 +2236,7 @@ df_processed = drop_empty_uploaded_rows(
                             uploaded_file.name
                         )
 
+
                         df_processed_save = prepare_month_metadata(
                             df_processed,
                             periode_data,
@@ -2241,8 +2244,16 @@ df_processed = drop_empty_uploaded_rows(
                             uploaded_file.name
                         )
 
-                        df_po_save = drop_empty_uploaded_rows(df_po_save)
-                        df_processed_save = drop_empty_uploaded_rows(df_processed_save)
+
+                        df_po_save = drop_empty_uploaded_rows(
+                            df_po_save
+                        )
+
+
+                        df_processed_save = drop_empty_uploaded_rows(
+                            df_processed_save
+                        )
+
 
                         # Validasi akhir Lama Proses PO
 
@@ -2252,9 +2263,6 @@ df_processed = drop_empty_uploaded_rows(
                                 df_processed_save["Lama Proses PO"],
                                 errors="coerce"
                             ).fillna(0)
-
-
-                        save_dataframe_to_db(
                             df_po_save,
                             df_processed_save,
                             mode="append"

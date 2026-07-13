@@ -2255,18 +2255,21 @@ with main_col:
                         )
 
 
-                        # Validasi akhir Lama Proses PO
+# Validasi akhir Lama Proses PO
 
-                        if "Lama Proses PO" in df_processed_save.columns:
+if "Lama Proses PO" in df_processed_save.columns:
 
-                            df_processed_save["Lama Proses PO"] = pd.to_numeric(
-                                df_processed_save["Lama Proses PO"],
-                                errors="coerce"
-                            ).fillna(0)
-                            df_po_save,
-                            df_processed_save,
-                            mode="append"
-                        )
+    df_processed_save["Lama Proses PO"] = pd.to_numeric(
+        df_processed_save["Lama Proses PO"],
+        errors="coerce"
+    ).fillna(0)
+
+
+save_dataframe_to_db(
+    df_po_save,
+    df_processed_save,
+    mode="append"
+)
 
                         save_upload_history(
                             uploaded_file.name,

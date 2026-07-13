@@ -1402,17 +1402,17 @@ def make_rekap(df):
 
     # Pastikan Lama Proses PO selalu numeric
 
-            if "Lama Proses PO" in df.columns:
-                avg_lama_proses = (
-                    pd.to_numeric(
-                        df["Lama Proses PO"],
-                        errors="coerce"
-                    )
-                    .fillna(0)
-                    .mean()
-                )
-            else:
-                avg_lama_proses = 0
+    if "Lama Proses PO" in df.columns:
+        avg_lama_proses = (
+            pd.to_numeric(
+                df["Lama Proses PO"],
+                errors="coerce"
+            )
+            .fillna(0)
+            .mean()
+        )
+    else:
+        avg_lama_proses = 0
 
     # ==============================
     # REKAP JUMLAH PAKET PO

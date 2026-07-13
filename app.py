@@ -24,6 +24,46 @@ UPLOAD_TABLE = "uploaded_files"
 TIMEZONE = ZoneInfo("Asia/Jakarta")
 
 
+def format_number(value):
+    """Format angka dengan pemisah ribuan Indonesia."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "0"
+
+    if pd.isna(number):
+        return "0"
+
+    decimals = 0 if number.is_integer() else 2
+    formatted = f"{number:,.{decimals}f}"
+    return formatted.replace(",", "_").replace(".", ",").replace("_", ".")
+
+
+def format_rupiah_ringkas(value):
+    """Format nilai Rupiah secara ringkas untuk kartu dan grafik."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = 0.0
+
+    if pd.isna(number):
+        number = 0.0
+
+    absolute = abs(number)
+    for divisor, suffix in (
+        (1_000_000_000_000, " T"),
+        (1_000_000_000, " M"),
+        (1_000_000, " Jt"),
+        (1_000, " Rb"),
+    ):
+        if absolute >= divisor:
+            short_value = number / divisor
+            decimals = 0 if short_value.is_integer() else 1
+            return f"Rp {short_value:.{decimals}f}".replace(".", ",") + suffix
+
+    return f"Rp {format_number(number)}"
+
+
 # ==============================
 # KONFIGURASI IDENTIFIKASI EXCEL
 # ==============================
@@ -981,10 +1021,7 @@ def find_kk_sheet(xls):
                 nrows=5
             )
 
-            columns = [
-                str(col).strip()
-                for col in df_temp.columns
-            ]
+            columns = [str(col).strip() for col in df_temp.columns]
 
             if (
                 "Purchase Order" in columns
@@ -995,6 +1032,18 @@ def find_kk_sheet(xls):
 
         except Exception:
             continue
+
+    # File operasional umumnya menempatkan KK pada sheet kedua. Fallback ini
+    # tetap memvalidasi kolom sehingga tidak salah membaca sheet sembarang.
+    if len(xls.sheet_names) >= 2:
+        second_sheet = xls.sheet_names[1]
+        try:
+            df_temp = pd.read_excel(xls, sheet_name=1, nrows=5)
+            columns = {str(col).strip() for col in df_temp.columns}
+            if {"Purchase Order", "Lama Proses PO"}.issubset(columns):
+                return second_sheet
+        except Exception:
+            pass
 
     return None
 
@@ -1274,6 +1323,10 @@ def process_po_data(df_po, df_kk=None):
 
 def read_excel_file(uploaded_file):
 
+    # Streamlit dapat mempertahankan posisi baca file setelah rerun.
+    if hasattr(uploaded_file, "seek"):
+        uploaded_file.seek(0)
+
     xls = pd.ExcelFile(
         uploaded_file,
         engine="openpyxl"
@@ -1298,6 +1351,8 @@ def read_excel_file(uploaded_file):
         sheet_name=po_sheet
     )
 
+    df_po.columns = [str(col).strip() for col in df_po.columns]
+
 
 
     if kk_sheet is not None:
@@ -1306,6 +1361,8 @@ def read_excel_file(uploaded_file):
             xls,
             sheet_name=kk_sheet
         )
+
+        df_kk.columns = [str(col).strip() for col in df_kk.columns]
 
     else:
 

@@ -1301,7 +1301,10 @@ def process_po_data(df_po, df_kk=None):
                 .str.strip()
             )
 
-
+            df = df.drop(
+                columns=["Lama Proses PO"],
+                errors="ignore"
+            )
 
             df = df.merge(
                 kk_lookup,

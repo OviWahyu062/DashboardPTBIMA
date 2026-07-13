@@ -2239,17 +2239,16 @@ with main_col:
                         # pastikan kolom Lama Proses PO tersimpan numeric
                         if "Lama Proses PO" in df_processed.columns:
 
-    # Jika ada nama kolom ganda, ambil kolom pertama
-    if isinstance(df_processed["Lama Proses PO"], pd.DataFrame):
-        df_processed["Lama Proses PO"] = (
-            df_processed["Lama Proses PO"]
-            .iloc[:, 0]
-        )
+                            if isinstance(df_processed["Lama Proses PO"], pd.DataFrame):
 
-    df_processed["Lama Proses PO"] = pd.to_numeric(
-        df_processed["Lama Proses PO"],
-        errors="coerce"
-    ).fillna(0)
+                                df_processed["Lama Proses PO"] = (
+                                    df_processed["Lama Proses PO"].iloc[:, 0]
+                                )
+
+                            df_processed["Lama Proses PO"] = pd.to_numeric(
+                                df_processed["Lama Proses PO"],
+                                errors="coerce"
+                            ).fillna(0)
 
                         df_processed = drop_empty_uploaded_rows(
                             df_processed
@@ -2295,7 +2294,7 @@ with main_col:
                         save_dataframe_to_db(
                             df_po_save,
                             df_processed_save,
-                        mode="append"
+                            mode="append"
                         )
 
                         save_upload_history(

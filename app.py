@@ -1292,42 +1292,27 @@ def process_po_data(df_po, df_kk=None):
 
     # ==============================
     # EFISIENSI
+    # Rumus: HPS/OE - NILAI PO
     # ==============================
 
-    df["Efisiensi"] = df.apply(
-        lambda row:
-        0
-        if row["Valuation Price"] == 0
-        else
-        (
-            row["Net Order Price"]
-            -
-            row["Valuation Price"]
-        )
-        *
-        row["Order Quantity"],
-        axis=1
-    )
+    # Total Valuation Price merupakan total HPS/OE:
+    # Valuation Price x Order Quantity.
+    # Net Order Value merupakan total nilai PO.
+    df["Efisiensi"] = (
+        df["Total Valuation Price"]
+        -
+        df["Net Order Value"]
+    ).fillna(0)
 
+    # Persentase efisiensi dihitung terhadap total HPS/OE.
+    df["Prosentase"] = 0.0
 
+    mask_hps = df["Total Valuation Price"] != 0
 
-    df["Prosentase"] = df.apply(
-        lambda row:
-        0
-        if (
-            row["Valuation Price"] == 0
-            or
-            row["Net Order Price"] == 0
-        )
-        else
-        (
-            row["Net Order Price"]
-            -
-            row["Valuation Price"]
-        )
+    df.loc[mask_hps, "Prosentase"] = (
+        df.loc[mask_hps, "Efisiensi"]
         /
-        row["Net Order Price"],
-        axis=1
+        df.loc[mask_hps, "Total Valuation Price"]
     )
 
 
@@ -1526,22 +1511,28 @@ def make_rekap(df):
                 "sum"
             ),
 
-            Total_Efisiensi=
-            (
-                "Efisiensi",
-                "sum"
-            ),
-
-            Rata_Rata_Prosentase=
-            (
-                "Prosentase",
-                "mean"
-            ),
-
         )
 
         .reset_index()
 
+    )
+
+    # Hitung ulang langsung dari nilai total agar diagram tetap benar,
+    # termasuk untuk data lama yang sebelumnya tersimpan dengan rumus terbalik.
+    efisiensi["Total_Efisiensi"] = (
+        efisiensi["Total_Valuation_Price"]
+        -
+        efisiensi["Total_Net_Order_Value"]
+    )
+
+    efisiensi["Rata_Rata_Prosentase"] = 0.0
+
+    mask_hps_rekap = efisiensi["Total_Valuation_Price"] != 0
+
+    efisiensi.loc[mask_hps_rekap, "Rata_Rata_Prosentase"] = (
+        efisiensi.loc[mask_hps_rekap, "Total_Efisiensi"]
+        /
+        efisiensi.loc[mask_hps_rekap, "Total_Valuation_Price"]
     )
 
 
@@ -2097,7 +2088,8 @@ with main_col:
             total_po = df["Purchasing Document"].nunique() if not df.empty else 0
             total_rows = len(df)
             total_order = df["Net Order Value"].sum() if not df.empty else 0
-            total_efisiensi = df["Efisiensi"].sum() if not df.empty else 0
+            total_hps_oe = df["Total Valuation Price"].sum() if not df.empty else 0
+            total_efisiensi = total_hps_oe - total_order
             if "Lama Proses PO" in df.columns:
                 avg_lama_proses = (
                     pd.to_numeric(

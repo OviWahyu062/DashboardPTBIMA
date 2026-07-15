@@ -1897,7 +1897,29 @@ def make_efficiency_comparison_bar(df):
     for col in ["Total_Valuation_Price", "Total_Net_Order_Value", "Total_Efisiensi"]:
         data[col] = pd.to_numeric(data[col], errors="coerce").fillna(0)
 
-    data["Status Final"] = data["Status Final"].astype(str)
+    data["Status Final"] = (
+        data["Status Final"]
+        .astype(str)
+        .str.strip()
+    )
+
+    # PIR hanya dihapus dari diagram efisiensi.
+    # Data PIR tetap tersimpan dan tetap dapat digunakan pada rekap lainnya.
+    data = data[
+        data["Status Final"].str.upper() != "PIR"
+    ].copy()
+
+    if data.empty:
+        fig = go.Figure()
+        fig.update_layout(
+            title="Tidak ada data efisiensi selain PIR",
+            height=420,
+            paper_bgcolor="#FFFFFF",
+            plot_bgcolor="#FFFFFF",
+            font=dict(color="#092D55", family="Inter"),
+        )
+        return fig
+
     data = data.sort_values("Total_Net_Order_Value", ascending=True)
 
     height = max(480, 95 * len(data) + 150)
